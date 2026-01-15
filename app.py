@@ -61,7 +61,7 @@ def ensure_directories():
         instance_path,
         os.path.join(instance_path, 'backups'),
     ]
-    
+
     for directory in directories:
         os.makedirs(directory, exist_ok=True)
         try:
@@ -103,33 +103,33 @@ class User(UserMixin, db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    
+
     def get_assigned_classes_dict(self):
         try:
             return json.loads(self.assigned_classes) if self.assigned_classes else {}
         except:
             return {}
-    
+
     def get_assigned_subjects_dict(self):
         try:
             return json.loads(self.assigned_subjects) if self.assigned_subjects else {}
         except:
             return {}
-    
+
     def is_assigned_to(self, class_name, section=None, subject_id=None):
         try:
             assigned_classes = self.get_assigned_classes_dict()
             assigned_subjects = self.get_assigned_subjects_dict()
-            
+
             if class_name not in assigned_classes:
                 return False
-            
+
             if section and section not in assigned_classes[class_name]:
                 return False
-            
+
             if subject_id and str(subject_id) not in assigned_subjects.get(class_name, []):
                 return False
-                
+
             return True
         except:
             return False
@@ -151,7 +151,7 @@ class Student(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    
+
     __table_args__ = (
         db.UniqueConstraint('class_name', 'section', 'roll_number', name='unique_student_roll'),
     )
@@ -164,7 +164,7 @@ class Class(db.Model):
     description = db.Column(db.String(200))
     class_teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    
+
     class_teacher = db.relationship('User', foreign_keys=[class_teacher_id])
 
 class Subject(db.Model):
@@ -183,10 +183,10 @@ class TeacherAssignment(db.Model):
     section = db.Column(db.String(5), nullable=False)
     subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    
+
     teacher = db.relationship('User', backref='assignments')
     subject = db.relationship('Subject', backref='assignments')
-    
+
     __table_args__ = (
         db.UniqueConstraint('teacher_id', 'class_name', 'section', 'subject_id', name='unique_teacher_assignment'),
     )
@@ -208,11 +208,11 @@ class Attendance(db.Model):
     pdf_url = db.Column(db.String(500))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    
+
     student = db.relationship('Student', backref='attendances')
     teacher = db.relationship('User', backref='attendances')
     subject = db.relationship('Subject', backref='attendances')
-    
+
     __table_args__ = (
         db.UniqueConstraint('student_id', 'date', 'subject_id', name='unique_daily_attendance'),
     )
@@ -231,7 +231,7 @@ class AttendanceSession(db.Model):
     pdf_generated = db.Column(db.Boolean, default=False)
     pdf_url = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    
+
     teacher = db.relationship('User', backref='attendance_sessions')
     subject = db.relationship('Subject', backref='attendance_sessions')
 
@@ -247,7 +247,7 @@ class SMSLog(db.Model):
     retry_count = db.Column(db.Integer, default=0)
     sent_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    
+
     attendance = db.relationship('Attendance', backref='sms_logs')
 
 class CustomMessage(db.Model):
@@ -312,7 +312,7 @@ class ActivityLog(db.Model):
     ip_address = db.Column(db.String(50))
     user_agent = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    
+
     user = db.relationship('User', backref='activities')
 
 class BackupLog(db.Model):
@@ -386,18 +386,18 @@ def generate_qr_code(data, filename):
     """Generate QR code for attendance using segno"""
     try:
         qr = segno.make_qr(data)
-        
+
         # Save to file as SVG
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'qrcodes', filename.replace('.png', '.svg'))
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        
+
         # Save as SVG
         qr.save(filepath, scale=10)
-        
+
         # Also save as PNG using segno's built-in PNG support
         png_filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'qrcodes', filename)
         qr.save(png_filepath, scale=10, dark='black', light='white')
-        
+
         return f'uploads/qrcodes/{filename}'
     except Exception as e:
         app.logger.error(f"Error generating QR code: {str(e)}")
@@ -491,45 +491,60 @@ def format_phone_e164(phone: str):
     if not phone:
         return None
     
+    # Remove all non-digit characters
     phone = "".join(filter(str.isdigit, phone))
     
+    # Handle Bangladesh numbers
     if phone.startswith("01") and len(phone) == 11:
         return f"+880{phone[1:]}"
-    if phone.startswith("8801") and len(phone) == 13:
-        return f"+{phone}"
-    if phone.startswith("1") and len(phone) == 10:
+    elif phone.startswith("1") and len(phone) == 10:
         return f"+880{phone}"
-    if phone.startswith("0"):
+    elif phone.startswith("880") and len(phone) == 13:
+        return f"+{phone}"
+    elif phone.startswith("0") and len(phone) == 11:
         return f"+880{phone[1:]}"
+    elif phone.startswith("0") and len(phone) == 10:
+        return f"+880{phone}"
+    elif len(phone) == 11 and phone.startswith("01"):
+        return f"+880{phone[1:]}"
+    elif len(phone) == 10:
+        return f"+880{phone}"
+    
+    # If already in E.164 format with +880
+    if phone.startswith("880") and len(phone) >= 13:
+        return f"+{phone}"
+    
+    # If nothing matches, try to extract last 10 digits
     if len(phone) >= 10:
-        return f"+880{phone[-10:]}"
+        last_10 = phone[-10:]
+        return f"+880{last_10}"
     
     return None
 
 def get_jwt_token():
     """Get JWT token from SMSGate (cached)"""
     global TOKEN_CACHE
-    
+
     if TOKEN_CACHE["token"] and TOKEN_CACHE["expires_at"]:
         if datetime.now(timezone.utc) < TOKEN_CACHE["expires_at"]:
             return TOKEN_CACHE["token"], None
-    
+
     if not SMSGATE_USERNAME or not SMSGATE_PASSWORD:
         return None, "SMSGate credentials not configured in environment variables"
-    
+
     auth_string = f"{SMSGATE_USERNAME}:{SMSGATE_PASSWORD}"
     auth_encoded = base64.b64encode(auth_string.encode()).decode()
-    
+
     headers = {
         "Authorization": f"Basic {auth_encoded}",
         "Content-Type": "application/json"
     }
-    
+
     payload = {
         "scopes": ["messages:send", "messages:read"],
         "ttl": 3600
     }
-    
+
     try:
         response = requests.post(
             f"{SMSGATE_BASE_URL}/3rdparty/v1/auth/token",
@@ -537,24 +552,24 @@ def get_jwt_token():
             json=payload,
             timeout=20
         )
-        
+
         if response.status_code in (200, 201):
             data = response.json()
             token = data.get("access_token")
-            
+
             TOKEN_CACHE["token"] = token
             TOKEN_CACHE["expires_at"] = datetime.now(timezone.utc) + timedelta(seconds=3500)
-            
+
             return token, None
-        
+
         return None, f"HTTP {response.status_code}: {response.text}"
-        
+
     except Exception as e:
         return None, str(e)
 
 def send_sms_via_smsgate(phone_numbers, message, retry=1):
     """Send SMS using SMSGate API"""
-    
+
     token, error = get_jwt_token()
     if error:
         return {
@@ -562,18 +577,18 @@ def send_sms_via_smsgate(phone_numbers, message, retry=1):
             "error": error,
             "results": []
         }
-    
+
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
-    
+
     results = []
-    
+
     for phone in phone_numbers:
         formatted_phone = format_phone_e164(phone)
-        
+
         if not formatted_phone:
             results.append({
                 "phone": phone,
@@ -582,14 +597,14 @@ def send_sms_via_smsgate(phone_numbers, message, retry=1):
                 "error": "Invalid phone format"
             })
             continue
-        
+
         payload = {
             "textMessage": {
                 "text": message
             },
             "phoneNumbers": [formatted_phone]
         }
-        
+
         try:
             response = requests.post(
                 f"{SMSGATE_BASE_URL}/3rdparty/v1/messages",
@@ -597,10 +612,10 @@ def send_sms_via_smsgate(phone_numbers, message, retry=1):
                 json=payload,
                 timeout=30
             )
-            
+
             if response.status_code in (200, 201, 202):
                 status = "Processing" if response.status_code == 202 else "Sent"
-                
+
                 results.append({
                     "phone": formatted_phone,
                     "success": True,
@@ -616,19 +631,19 @@ def send_sms_via_smsgate(phone_numbers, message, retry=1):
                     "provider_status_code": response.status_code,
                     "error": response.text
                 })
-                
+
         except requests.exceptions.RequestException as e:
             if retry > 0:
                 time.sleep(2)
                 return send_sms_via_smsgate(phone_numbers, message, retry=retry-1)
-            
+
             results.append({
                 "phone": formatted_phone,
                 "success": False,
                 "status": "NetworkError",
                 "error": str(e)
             })
-    
+
     return {
         "success": any(r["success"] for r in results),
         "results": results
@@ -640,6 +655,9 @@ def send_single_sms(phone, message, config=None):
         formatted_phone = format_phone_e164(phone)
         if not formatted_phone:
             return False, "Invalid phone number format", None, None
+        
+        # Log the phone number before sending
+        app.logger.info(f"Sending SMS to {phone} -> Formatted: {formatted_phone}")
         
         result = send_sms_via_smsgate([formatted_phone], message)
         
@@ -666,106 +684,250 @@ def send_single_sms(phone, message, config=None):
             )
         
         return False, "No result from SMSGate", None, None
-            
+        
     except Exception as e:
+        app.logger.error(f"SMS sending error for {phone}: {str(e)}")
         return False, str(e), None, None
 
-# ============= PROFESSIONAL OFFICE-STYLE PDF GENERATION WITH WEASYPRINT =============
+# ============= PROFESSIONAL OFFICE-STYLE PDF GENERATION =============
 def generate_office_style_pdf(attendance_session):
     """
-    Generate a professional office-style attendance PDF using WeasyPrint.
+    Generate a professional office-style attendance PDF.
     Returns the relative URL to the saved PDF.
     """
-    # Get data
-    subject = db.session.get(Subject, attendance_session.subject_id)
-    teacher = db.session.get(User, attendance_session.teacher_id)
-    school = SystemSettings.query.first()
-    
-    # Get attendance records for this session
-    attendance_records = Attendance.query.filter_by(
-        date=attendance_session.date,
-        class_name=attendance_session.class_name,
-        section=attendance_session.section,
-        subject_id=attendance_session.subject_id,
-        teacher_id=attendance_session.teacher_id
-    ).order_by(Attendance.student_id).all()
-    
-    # Get all students in class
-    students = Student.query.filter_by(
-        class_name=attendance_session.class_name,
-        section=attendance_session.section,
-        is_active=True
-    ).order_by(Student.roll_number).all()
-    
-    attendance_dict = {record.student_id: record.status for record in attendance_records}
-    
-    # Prepare data for template
-    attendance_list = []
-    for idx, student in enumerate(students, 1):
-        status = attendance_dict.get(student.id, "absent")
-        record = next((r for r in attendance_records if r.student_id == student.id), None)
-        attendance_list.append({
-            'serial': idx,
-            'student': student,
-            'status': status,
-            'remarks': record.notes[:30] + "..." if record and record.notes and len(record.notes) > 30 else (record.notes if record and record.notes else ""),
-            'phone': student.father_phone or student.mother_phone or "N/A"
-        })
-    
-    # Calculate statistics
-    total_students = attendance_session.total_students
-    present_count = attendance_session.present_count
-    absent_count = attendance_session.absent_count
-    attendance_rate = (present_count / total_students * 100) if total_students > 0 else 0.0
-    
-    # Generate HTML content
-    html_content = render_template(
-        'attendance_pdf.html',
-        school=school,
-        attendance_session=attendance_session,
-        subject=subject,
-        teacher=teacher,
-        attendance_list=attendance_list,
-        total_students=total_students,
-        present_count=present_count,
-        absent_count=absent_count,
-        attendance_rate=attendance_rate,
-        current_date=datetime.now(timezone.utc)
-    )
-    
-    # Generate PDF with WeasyPrint
-    buffer = io.BytesIO()
-    HTML(string=html_content).write_pdf(buffer)
-    buffer.seek(0)
-    
-    # Save PDF locally
-    timestamp = int(datetime.now(timezone.utc).timestamp())
-    pdf_basename = f"Office_Attendance_{attendance_session.class_name}_{attendance_session.section}_{attendance_session.date.strftime('%Y%m%d')}_{timestamp}.pdf"
-    pdf_dir = os.path.join(app.config['UPLOAD_FOLDER'], "pdfs")
-    os.makedirs(pdf_dir, exist_ok=True)
-    pdf_path = os.path.join(pdf_dir, pdf_basename)
-    
-    with open(pdf_path, "wb") as f:
-        f.write(buffer.getvalue())
-    
-    # Update database records
-    attendance_session.pdf_generated = True
-    attendance_session.pdf_url = f"/uploads/pdfs/{pdf_basename}"
-    
-    # Update attendance records with PDF path
-    for attendance in Attendance.query.filter_by(
-        teacher_id=attendance_session.teacher_id,
-        class_name=attendance_session.class_name,
-        section=attendance_session.section,
-        subject_id=attendance_session.subject_id,
-        date=attendance_session.date
-    ):
-        attendance.pdf_path = pdf_path
-        attendance.pdf_url = f"/uploads/pdfs/{pdf_basename}"
-    
-    db.session.commit()
-    
-    return buffer, f"/uploads/pdfs/{pdf_basename}"
+    try:
+        # Get data
+        subject = db.session.get(Subject, attendance_session.subject_id)
+        teacher = db.session.get(User, attendance_session.teacher_id)
+        school = SystemSettings.query.first()
+        
+        if not school:
+            # Create default settings if none exist
+            school = SystemSettings()
+            db.session.add(school)
+            db.session.commit()
+        
+        # Get attendance records for this session
+        attendance_records = Attendance.query.filter_by(
+            date=attendance_session.date,
+            class_name=attendance_session.class_name,
+            section=attendance_session.section,
+            subject_id=attendance_session.subject_id,
+            teacher_id=attendance_session.teacher_id
+        ).order_by(Attendance.student_id).all()
+        
+        # Get all students in class
+        students = Student.query.filter_by(
+            class_name=attendance_session.class_name,
+            section=attendance_session.section,
+            is_active=True
+        ).order_by(Student.roll_number).all()
+        
+        attendance_dict = {record.student_id: record.status for record in attendance_records}
+        
+        # Prepare data for template
+        attendance_list = []
+        for idx, student in enumerate(students, 1):
+            status = attendance_dict.get(student.id, "absent")
+            record = next((r for r in attendance_records if r.student_id == student.id), None)
+            attendance_list.append({
+                'serial': idx,
+                'student': student,
+                'status': status,
+                'remarks': record.notes[:30] + "..." if record and record.notes and len(record.notes) > 30 else (record.notes if record and record.notes else ""),
+                'phone': student.father_phone or student.mother_phone or "N/A"
+            })
+        
+        # Calculate statistics
+        total_students = len(students) if students else 0
+        present_count = sum(1 for a in attendance_records if a.status == 'present')
+        absent_count = total_students - present_count
+        attendance_rate = (present_count / total_students * 100) if total_students > 0 else 0.0
+        
+        # Update session statistics
+        attendance_session.total_students = total_students
+        attendance_session.present_count = present_count
+        attendance_session.absent_count = absent_count
+        
+        # Generate HTML content
+        html_content = render_template(
+            'attendance_pdf.html',
+            school=school,
+            attendance_session=attendance_session,
+            subject=subject,
+            teacher=teacher,
+            attendance_list=attendance_list,
+            total_students=total_students,
+            present_count=present_count,
+            absent_count=absent_count,
+            attendance_rate=attendance_rate,
+            current_date=datetime.now(timezone.utc)
+        )
+        
+        # Generate PDF with WeasyPrint
+        buffer = io.BytesIO()
+        HTML(string=html_content).write_pdf(buffer)
+        buffer.seek(0)
+        
+        # Save PDF locally
+        timestamp = int(datetime.now(timezone.utc).timestamp())
+        pdf_basename = f"Office_Attendance_{attendance_session.class_name}_{attendance_session.section}_{attendance_session.date.strftime('%Y%m%d')}_{timestamp}.pdf"
+        pdf_dir = os.path.join(app.config['UPLOAD_FOLDER'], "pdfs")
+        os.makedirs(pdf_dir, exist_ok=True)
+        pdf_path = os.path.join(pdf_dir, pdf_basename)
+        
+        with open(pdf_path, "wb") as f:
+            f.write(buffer.getvalue())
+        
+        # Update database records
+        attendance_session.pdf_generated = True
+        attendance_session.pdf_url = f"/uploads/pdfs/{pdf_basename}"
+        
+        # Update attendance records with PDF path
+        for attendance in Attendance.query.filter_by(
+            teacher_id=attendance_session.teacher_id,
+            class_name=attendance_session.class_name,
+            section=attendance_session.section,
+            subject_id=attendance_session.subject_id,
+            date=attendance_session.date
+        ):
+            attendance.pdf_path = pdf_path
+            attendance.pdf_url = f"/uploads/pdfs/{pdf_basename}"
+        
+        db.session.commit()
+        
+        return buffer, f"/uploads/pdfs/{pdf_basename}"
+        
+    except Exception as e:
+        app.logger.error(f"PDF generation error: {str(e)}")
+        db.session.rollback()
+        
+        # Try alternative PDF generation method
+        try:
+            return generate_simple_pdf_fallback(attendance_session)
+        except Exception as fallback_error:
+            app.logger.error(f"Fallback PDF generation also failed: {str(fallback_error)}")
+            return None, None
+
+def generate_simple_pdf_fallback(attendance_session):
+    """Generate a simple PDF as fallback when WeasyPrint fails"""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.units import inch
+        
+        # Get data
+        subject = db.session.get(Subject, attendance_session.subject_id)
+        teacher = db.session.get(User, attendance_session.teacher_id)
+        school = SystemSettings.query.first()
+        
+        # Get attendance records
+        attendance_records = Attendance.query.filter_by(
+            date=attendance_session.date,
+            class_name=attendance_session.class_name,
+            section=attendance_session.section,
+            subject_id=attendance_session.subject_id,
+            teacher_id=attendance_session.teacher_id
+        ).all()
+        
+        # Get students
+        students = Student.query.filter_by(
+            class_name=attendance_session.class_name,
+            section=attendance_session.section,
+            is_active=True
+        ).order_by(Student.roll_number).all()
+        
+        # Create PDF buffer
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        
+        # Title
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(100, height - 100, f"{school.school_name if school else 'Dewra High School'}")
+        c.setFont("Helvetica", 14)
+        c.drawString(100, height - 130, "Attendance Report")
+        
+        # Details
+        c.setFont("Helvetica", 10)
+        y = height - 170
+        c.drawString(100, y, f"Class: {attendance_session.class_name}-{attendance_session.section}")
+        c.drawString(300, y, f"Date: {attendance_session.date.strftime('%d/%m/%Y')}")
+        y -= 20
+        c.drawString(100, y, f"Subject: {subject.name if subject else 'N/A'}")
+        c.drawString(300, y, f"Teacher: {teacher.username if teacher else 'N/A'}")
+        y -= 20
+        c.drawString(100, y, f"Total Students: {len(students)}")
+        
+        # Table header
+        y -= 40
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(50, y, "Roll No.")
+        c.drawString(100, y, "Name")
+        c.drawString(250, y, "Status")
+        c.drawString(300, y, "Phone")
+        
+        # Draw line
+        y -= 5
+        c.line(50, y, 550, y)
+        
+        # Student rows
+        c.setFont("Helvetica", 9)
+        y -= 20
+        
+        for student in students:
+            if y < 100:  # New page if running out of space
+                c.showPage()
+                y = height - 100
+                c.setFont("Helvetica", 9)
+            
+            attendance = next((a for a in attendance_records if a.student_id == student.id), None)
+            status = attendance.status if attendance else "Absent"
+            
+            c.drawString(50, y, str(student.roll_number))
+            c.drawString(100, y, student.name[:25])  # Limit name length
+            c.drawString(250, y, status.upper())
+            
+            phone = format_phone_e164(student.father_phone or student.mother_phone or "")
+            c.drawString(300, y, phone if phone else "N/A")
+            
+            y -= 20
+        
+        # Summary
+        y -= 30
+        c.setFont("Helvetica-Bold", 10)
+        present_count = sum(1 for a in attendance_records if a.status == 'present')
+        absent_count = len(students) - present_count
+        c.drawString(100, y, f"Present: {present_count}")
+        c.drawString(200, y, f"Absent: {absent_count}")
+        
+        # Footer
+        c.setFont("Helvetica", 8)
+        c.drawString(100, 50, f"Report generated: {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M')}")
+        
+        c.save()
+        buffer.seek(0)
+        
+        # Save PDF locally
+        timestamp = int(datetime.now(timezone.utc).timestamp())
+        pdf_basename = f"Simple_Attendance_{attendance_session.class_name}_{attendance_session.section}_{attendance_session.date.strftime('%Y%m%d')}_{timestamp}.pdf"
+        pdf_dir = os.path.join(app.config['UPLOAD_FOLDER'], "pdfs")
+        os.makedirs(pdf_dir, exist_ok=True)
+        pdf_path = os.path.join(pdf_dir, pdf_basename)
+        
+        with open(pdf_path, "wb") as f:
+            f.write(buffer.getvalue())
+        
+        # Update database
+        attendance_session.pdf_generated = True
+        attendance_session.pdf_url = f"/uploads/pdfs/{pdf_basename}"
+        db.session.commit()
+        
+        return buffer, f"/uploads/pdfs/{pdf_basename}"
+        
+    except Exception as e:
+        app.logger.error(f"Simple PDF fallback error: {str(e)}")
+        return None, None
 
 # ============= SMS FUNCTIONS WITH 10 SEC DELAY =============
 def send_sms_bulk_with_delay(sms_tasks):
@@ -773,13 +935,13 @@ def send_sms_bulk_with_delay(sms_tasks):
     # Check if SMSGate is configured via environment variables
     if not SMSGATE_USERNAME or not SMSGATE_PASSWORD:
         return {'success': 0, 'failed': len(sms_tasks), 'error': 'SMSGate credentials not configured'}
-    
+
     # Also check database config
     try:
         config = SMSConfig.query.first()
     except:
         config = None
-    
+
     if not config or not config.enabled:
         # If SMS is disabled, mark all as failed
         for phone, message, att_id in sms_tasks:
@@ -795,20 +957,20 @@ def send_sms_bulk_with_delay(sms_tasks):
                     db.session.add(log)
                 except:
                     pass
-        
+
         try:
             db.session.commit()
         except:
             db.session.rollback()
         return {'success': 0, 'failed': len(sms_tasks), 'error': 'SMS service is disabled'}
-    
+
     results = {'success': 0, 'failed': 0, 'logs': []}
-    
+
     # Send SMS with 10 second delay between each
     for i, (phone, message, att_id) in enumerate(sms_tasks):
         try:
             success, response_msg, response_data, message_id = send_single_sms(phone, message, config)
-            
+
             # Create log
             try:
                 log = SMSLog(
@@ -820,7 +982,7 @@ def send_sms_bulk_with_delay(sms_tasks):
                     message_id=message_id
                 )
                 db.session.add(log)
-                
+
                 # Update attendance status
                 if att_id:
                     attendance = db.session.get(Attendance, att_id)
@@ -828,22 +990,22 @@ def send_sms_bulk_with_delay(sms_tasks):
                         attendance.sms_status = 'sent' if success else 'failed'
             except Exception as e:
                 app.logger.error(f"Error creating SMS log: {str(e)}")
-            
+
             if success:
                 results['success'] += 1
             else:
                 results['failed'] += 1
-            
+
             results['logs'].append({
                 'phone': phone,
                 'status': 'sent' if success else 'failed',
                 'message': response_msg[:100] if response_msg else 'No response'
             })
-            
+
             # 10 second delay between messages to avoid rate limiting
             if i < len(sms_tasks) - 1:  # Don't delay after the last message
                 time.sleep(10)
-            
+
         except Exception as e:
             results['failed'] += 1
             results['logs'].append({
@@ -851,18 +1013,18 @@ def send_sms_bulk_with_delay(sms_tasks):
                 'status': 'failed',
                 'message': str(e)[:100]
             })
-            
+
             # 10 second delay even on error
             if i < len(sms_tasks) - 1:
                 time.sleep(10)
-    
+
     try:
         db.session.commit()
     except:
         db.session.rollback()
-    
+
     app.logger.info(f"SMS sending results: {results['success']} sent, {results['failed']} failed")
-    
+
     return results
 
 def process_attendance_sms_with_delay(attendance_session_id):
@@ -872,7 +1034,7 @@ def process_attendance_sms_with_delay(attendance_session_id):
             attendance_session = db.session.get(AttendanceSession, attendance_session_id)
             if not attendance_session:
                 return
-            
+
             # Get all students for attendance
             attendance_records = Attendance.query.filter_by(
                 teacher_id=attendance_session.teacher_id,
@@ -881,7 +1043,7 @@ def process_attendance_sms_with_delay(attendance_session_id):
                 subject_id=attendance_session.subject_id,
                 date=attendance_session.date
             ).all()
-            
+
             sms_tasks = []
             for record in attendance_records:
                 student = record.student
@@ -894,12 +1056,12 @@ def process_attendance_sms_with_delay(attendance_session_id):
                         attendance_session.date
                     )
                     sms_tasks.append((student.father_phone, message, record.id))
-            
+
             # Send SMS with 10 second delay between each
             if sms_tasks:
                 results = send_sms_bulk_with_delay(sms_tasks)
                 app.logger.info(f"SMS sending results with delay: {results}")
-                
+
                 # Log completion
                 log_activity(
                     'sms_sent', 
@@ -913,12 +1075,12 @@ def get_sms_message(student, status, class_name, section, date=None):
     """Get SMS message template"""
     if date is None:
         date = datetime.now(timezone.utc).date()
-    
+
     try:
         custom_msg = CustomMessage.query.filter_by(message_type=status).first()
     except:
         custom_msg = None
-    
+
     if custom_msg:
         msg = custom_msg.message_text
     else:
@@ -928,7 +1090,7 @@ def get_sms_message(student, status, class_name, section, date=None):
             msg = "Dear Guardian, your child [Student Name], Roll [Roll], is absent today in class [Class]. - Dewra High School"
         else:
             msg = "Dear Guardian, your child [Student Name], Roll [Roll], is [Status] today in class [Class]. - Dewra High School"
-    
+
     # Replace placeholders
     msg = msg.replace('[Student Name]', student.name)\
              .replace('[Roll]', str(student.roll_number))\
@@ -936,7 +1098,7 @@ def get_sms_message(student, status, class_name, section, date=None):
              .replace('[Date]', date.strftime('%d/%m/%Y'))\
              .replace('[Day]', date.strftime('%A'))\
              .replace('[Status]', status.capitalize())
-    
+
     return msg
 
 # ============= ROUTES =============
@@ -949,7 +1111,7 @@ def index():
             quote = get_today_quote()
         except:
             pass
-        
+
         joy_messages = [
             "🎉 Welcome to Dewra High School Smart System!",
             "🌟 Education is the passport to the future!",
@@ -957,10 +1119,10 @@ def index():
             "🚀 Let's make learning fun and effective!",
             "🌈 Together we can build a better tomorrow!"
         ]
-        
+
         import random
         joy_message = random.choice(joy_messages)
-        
+
         return render_template('index.html', 
                              quote=quote,
                              joy_message=joy_message)
@@ -991,21 +1153,21 @@ def index():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    
+
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
-        
+
         try:
             user = User.query.filter(
                 db.func.lower(User.email) == email,
                 User.is_active == True
             ).first()
-            
+
             if user and check_password_hash(user.password, password):
                 login_user(user)
                 log_activity('login', 'auth', f"User {user.email} logged in")
-                
+
                 if user.role == 'teacher':
                     try:
                         quote = get_today_quote()
@@ -1017,7 +1179,7 @@ def login():
                         flash('🌟 Welcome back! Ready to inspire minds today?', 'success')
                 else:
                     flash('🔧 Admin dashboard loaded successfully!', 'success')
-                
+
                 next_page = request.args.get('next')
                 return redirect(next_page or url_for('dashboard'))
             else:
@@ -1026,11 +1188,11 @@ def login():
                     log_activity('failed_login', 'auth', f"Failed login attempt for {email}")
                 except:
                     pass
-                
+
         except Exception as e:
             flash('❌ Database error. Please try again.', 'danger')
             app.logger.error(f"Login error: {str(e)}")
-    
+
     return render_template('login.html')
 
 @app.route('/logout')
@@ -1049,7 +1211,7 @@ def logout():
 def dashboard():
     """Main dashboard based on role"""
     today = datetime.now(timezone.utc).date()
-    
+
     try:
         if current_user.role == 'super_admin':
             stats = {
@@ -1060,43 +1222,43 @@ def dashboard():
                 'active_classes': Class.query.count(),
                 'total_subjects': Subject.query.count(),
             }
-            
+
             recent_activities = ActivityLog.query.order_by(
                 ActivityLog.created_at.desc()
             ).limit(15).all()
-            
+
             today_summary = db.session.query(
                 db.func.count(Attendance.id).label('total'),
                 db.func.sum(db.case((Attendance.status == 'present', 1), else_=0)).label('present'),
                 db.func.sum(db.case((Attendance.status == 'absent', 1), else_=0)).label('absent')
             ).filter(Attendance.date == today).first()
-            
+
             return render_template('admin/dashboard.html', 
                                  stats=stats, 
                                  recent_activities=recent_activities,
                                  today_summary=today_summary)
-        
+
         else:
             assigned_classes = current_user.get_assigned_classes_dict()
-            
+
             today_attendance = Attendance.query.filter_by(
                 teacher_id=current_user.id,
                 date=today
             ).count()
-            
+
             week_start = today - timedelta(days=today.weekday())
             week_attendance = Attendance.query.filter(
                 Attendance.teacher_id == current_user.id,
                 Attendance.date >= week_start,
                 Attendance.date <= today
             ).count()
-            
+
             recent_sessions = AttendanceSession.query.filter_by(
                 teacher_id=current_user.id
             ).order_by(AttendanceSession.date.desc()).limit(10).all()
-            
+
             quote = get_today_quote()
-            
+
             classes_with_stats = []
             for class_name, sections in assigned_classes.items():
                 for section in sections:
@@ -1105,7 +1267,7 @@ def dashboard():
                         section=section,
                         is_active=True
                     ).count()
-                    
+
                     today_present = Attendance.query.filter_by(
                         teacher_id=current_user.id,
                         class_name=class_name,
@@ -1113,7 +1275,7 @@ def dashboard():
                         date=today,
                         status='present'
                     ).count()
-                    
+
                     classes_with_stats.append({
                         'class': class_name,
                         'section': section,
@@ -1121,7 +1283,7 @@ def dashboard():
                         'present': today_present,
                         'absent': total_students - today_present if total_students > 0 else 0
                     })
-            
+
             return render_template('teacher/dashboard.html',
                                  assigned_classes=assigned_classes,
                                  today_attendance=today_attendance,
@@ -1140,7 +1302,7 @@ def dashboard():
 @teacher_required
 def take_attendance():
     """Take attendance for assigned classes and subjects"""
-    
+
     if request.method == 'POST':
         try:
             data = request.get_json()
@@ -1149,25 +1311,25 @@ def take_attendance():
             subject_id = data.get('subject_id')
             attendance_data = data.get('attendance', [])
             date_str = data.get('date', datetime.now(timezone.utc).date().isoformat())
-            
+
             if not current_user.is_assigned_to(class_name, section, subject_id):
                 return jsonify({'success': False, 'error': 'You are not assigned to this class/subject'}), 403
-            
+
             try:
                 attendance_date = datetime.strptime(date_str, '%Y-%m-%d').date()
             except:
                 attendance_date = datetime.now(timezone.utc).date()
-            
+
             subject = db.session.get(Subject, subject_id)
             if not subject:
                 return jsonify({'success': False, 'error': 'Invalid subject'}), 400
-            
+
             students = Student.query.filter_by(
                 class_name=class_name,
                 section=section,
                 is_active=True
             ).order_by(Student.roll_number).all()
-            
+
             existing_attendance = {}
             existing_records = Attendance.query.filter_by(
                 teacher_id=current_user.id,
@@ -1176,26 +1338,26 @@ def take_attendance():
                 subject_id=subject_id,
                 date=attendance_date
             ).all()
-            
+
             for record in existing_records:
                 existing_attendance[record.student_id] = record
-            
+
             sms_tasks = []
             present_count = 0
             absent_count = 0
-            
+
             for student in students:
                 student_attendance = next((item for item in attendance_data if str(item['student_id']) == str(student.id)), None)
                 status = student_attendance['status'] if student_attendance else 'absent'
                 notes = student_attendance.get('notes', '') if student_attendance else ''
-                
+
                 if status == 'present':
                     present_count += 1
                 else:
                     absent_count += 1
-                
+
                 existing = existing_attendance.get(student.id)
-                
+
                 if existing:
                     existing.status = status
                     existing.notes = notes
@@ -1216,7 +1378,7 @@ def take_attendance():
                     )
                     db.session.add(attendance)
                     db.session.flush()
-                    
+
                     if student.father_phone:
                         message = get_sms_message(
                             student, 
@@ -1226,7 +1388,7 @@ def take_attendance():
                             attendance_date
                         )
                         sms_tasks.append((student.father_phone, message, attendance.id))
-            
+
             attendance_session = AttendanceSession.query.filter_by(
                 teacher_id=current_user.id,
                 class_name=class_name,
@@ -1234,7 +1396,7 @@ def take_attendance():
                 subject_id=subject_id,
                 date=attendance_date
             ).first()
-            
+
             if attendance_session:
                 attendance_session.total_students = len(students)
                 attendance_session.present_count = present_count
@@ -1252,30 +1414,35 @@ def take_attendance():
                     pdf_generated=False
                 )
                 db.session.add(attendance_session)
-            
+
             db.session.commit()
-            
+
             try:
                 pdf_buffer, pdf_url = generate_office_style_pdf(attendance_session)
-                
-                pdf_download_url = url_for('download_attendance_pdf', 
-                                          class_name=class_name, 
-                                          section=section,
-                                          date=attendance_date.strftime('%Y-%m-%d'),
-                                          subject_id=subject_id)
-                
+
+                if pdf_url:
+                    pdf_download_url = url_for('download_attendance_pdf', 
+                                              class_name=class_name, 
+                                              section=section,
+                                              date=attendance_date.strftime('%Y-%m-%d'),
+                                              subject_id=subject_id)
+                else:
+                    pdf_download_url = None
+                    flash('⚠️ PDF could not be generated, but attendance was saved', 'warning')
+                    
             except Exception as e:
                 app.logger.error(f"Office PDF generation error: {str(e)}")
                 pdf_url = None
                 pdf_download_url = None
-            
+                flash('⚠️ PDF generation failed, but attendance was saved', 'warning')
+
             if sms_tasks:
                 Thread(target=process_attendance_sms_with_delay, args=(attendance_session.id,)).start()
                 flash(f'📱 SMS will be sent with 10s delay to {len(sms_tasks)} guardians', 'success')
-            
+
             log_activity('take_attendance', 'attendance', 
                         f"Marked attendance for {class_name}-{section}, {subject.name}, {len(students)} students")
-            
+
             return jsonify({
                 'success': True,
                 'message': f'✅ Attendance saved for {len(students)} students',
@@ -1289,28 +1456,28 @@ def take_attendance():
                 'pdf_download_url': pdf_download_url,
                 'attendance_session_id': attendance_session.id
             })
-            
+
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Attendance save error: {str(e)}")
             return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     try:
         assigned_classes = current_user.get_assigned_classes_dict()
-        
+
         class_subjects = {}
         for class_name in assigned_classes:
             subject_ids = current_user.get_assigned_subjects_dict().get(class_name, [])
             if subject_ids:
                 subjects = Subject.query.filter(Subject.id.in_(subject_ids)).all()
                 class_subjects[class_name] = subjects
-        
+
         today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-        
+
         recent_sessions = AttendanceSession.query.filter_by(
             teacher_id=current_user.id
         ).order_by(AttendanceSession.date.desc()).limit(5).all()
-        
+
         messages = [
             "🌟 Make every student feel special today!",
             "💫 Your attention builds their confidence!",
@@ -1320,7 +1487,7 @@ def take_attendance():
         ]
         import random
         motivational_msg = random.choice(messages)
-        
+
         return render_template('teacher/take_attendance.html',
                              assigned_classes=assigned_classes,
                              class_subjects=class_subjects,
@@ -1336,42 +1503,42 @@ def take_attendance():
 @teacher_required
 def attendance_history():
     """View attendance history"""
-    
+
     try:
         page = request.args.get('page', 1, type=int)
         class_filter = request.args.get('class', 'all')
         date_filter = request.args.get('date', '')
         subject_filter = request.args.get('subject', 'all')
-        
+
         query = AttendanceSession.query.filter_by(teacher_id=current_user.id)
-        
+
         if class_filter != 'all':
             query = query.filter_by(class_name=class_filter)
-        
+
         if subject_filter != 'all':
             query = query.filter_by(subject_id=subject_filter)
-        
+
         if date_filter:
             try:
                 filter_date = datetime.strptime(date_filter, '%Y-%m-%d').date()
                 query = query.filter_by(date=filter_date)
             except:
                 pass
-        
+
         attendance_history = query.order_by(AttendanceSession.date.desc())\
                                  .paginate(page=page, per_page=15, error_out=False)
-        
+
         assigned_classes = current_user.get_assigned_classes_dict()
-        
+
         all_subjects = []
         for class_name in assigned_classes:
             subject_ids = current_user.get_assigned_subjects_dict().get(class_name, [])
             if subject_ids:
                 subjects = Subject.query.filter(Subject.id.in_(subject_ids)).all()
                 all_subjects.extend(subjects)
-        
+
         all_subjects = list({subject.id: subject for subject in all_subjects}.values())
-        
+
         return render_template('teacher/attendance_history.html',
                              attendance_history=attendance_history,
                              assigned_classes=assigned_classes,
@@ -1387,13 +1554,13 @@ def attendance_history():
 @login_required
 def download_attendance_pdf(class_name, section, date, subject_id):
     """Download PDF for specific attendance"""
-    
+
     try:
         attendance_date = datetime.strptime(date, '%Y-%m-%d').date()
     except:
         flash('Invalid date format', 'danger')
         return redirect(url_for('attendance_history'))
-    
+
     try:
         attendance_session = AttendanceSession.query.filter_by(
             class_name=class_name,
@@ -1401,18 +1568,18 @@ def download_attendance_pdf(class_name, section, date, subject_id):
             date=attendance_date,
             subject_id=subject_id
         ).first()
-        
+
         if not attendance_session:
             flash('Attendance record not found', 'danger')
             return redirect(url_for('attendance_history'))
-        
+
         if current_user.role == 'teacher' and attendance_session.teacher_id != current_user.id:
             flash('Access denied', 'danger')
             return redirect(url_for('dashboard'))
-        
+
         pdf_filename = f"Office_Attendance_{class_name}_{section}_{attendance_date.strftime('%Y%m%d')}.pdf"
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs', pdf_filename)
-        
+
         if os.path.exists(pdf_path):
             return send_from_directory(
                 os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs'),
@@ -1420,10 +1587,10 @@ def download_attendance_pdf(class_name, section, date, subject_id):
                 as_attachment=True,
                 download_name=pdf_filename
             )
-        
+
         try:
             pdf_buffer, pdf_url = generate_office_style_pdf(attendance_session)
-            
+
             return send_file(
                 pdf_buffer,
                 as_attachment=True,
@@ -1446,21 +1613,21 @@ def view_attendance_pdf(session_id):
         if not attendance_session:
             flash('Attendance session not found', 'danger')
             return redirect(url_for('attendance_history'))
-        
+
         if current_user.role == 'teacher' and attendance_session.teacher_id != current_user.id:
             flash('Access denied', 'danger')
             return redirect(url_for('dashboard'))
-        
+
         pdf_filename = f"Office_Attendance_{attendance_session.class_name}_{attendance_session.section}_{attendance_session.date.strftime('%Y%m%d')}.pdf"
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs', pdf_filename)
-        
+
         if os.path.exists(pdf_path):
             return send_from_directory(
                 os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs'),
                 pdf_filename,
                 as_attachment=False
             )
-        
+
         try:
             pdf_buffer, pdf_url = generate_office_style_pdf(attendance_session)
             return send_file(
@@ -1480,31 +1647,31 @@ def view_attendance_pdf(session_id):
 @login_required
 def generate_pdf_on_demand(session_id):
     """Generate office-style PDF for attendance session on demand"""
-    
+
     try:
         attendance_session = db.session.get(AttendanceSession, session_id)
         if not attendance_session:
             return jsonify({'success': False, 'error': 'Attendance session not found'}), 404
-        
+
         if current_user.role == 'teacher' and attendance_session.teacher_id != current_user.id:
             return jsonify({'success': False, 'error': 'Access denied'}), 403
-        
+
         try:
             pdf_buffer, pdf_url = generate_office_style_pdf(attendance_session)
-            
+
             download_url = url_for('download_attendance_pdf', 
                                   class_name=attendance_session.class_name, 
                                   section=attendance_session.section,
                                   date=attendance_session.date.strftime('%Y-%m-%d'),
                                   subject_id=attendance_session.subject_id)
-            
+
             return jsonify({
                 'success': True,
                 'message': '✅ Office-Style PDF generated successfully',
                 'download_url': download_url,
                 'view_url': pdf_url
             })
-            
+
         except Exception as e:
             app.logger.error(f"Office PDF generation error: {str(e)}")
             return jsonify({'success': False, 'error': str(e)}), 500
@@ -1516,17 +1683,17 @@ def generate_pdf_on_demand(session_id):
 @teacher_required
 def my_students():
     """View students in assigned classes"""
-    
+
     try:
         assigned_classes = current_user.get_assigned_classes_dict()
-        
+
         class_name = request.args.get('class', '')
         section = request.args.get('section', '')
-        
+
         students = []
         selected_class = None
         selected_section = None
-        
+
         if class_name and section and class_name in assigned_classes and section in assigned_classes[class_name]:
             students = Student.query.filter_by(
                 class_name=class_name,
@@ -1535,7 +1702,7 @@ def my_students():
             ).order_by(Student.roll_number).all()
             selected_class = class_name
             selected_section = section
-        
+
         return render_template('teacher/my_students.html',
                              assigned_classes=assigned_classes,
                              students=students,
@@ -1550,19 +1717,19 @@ def my_students():
 @teacher_required
 def view_student(student_id):
     """View individual student profile and attendance history"""
-    
+
     try:
         student = db.session.get(Student, student_id)
         if not student:
             flash('Student not found', 'danger')
             return redirect(url_for('my_students'))
-        
+
         if not current_user.is_assigned_to(student.class_name, student.section):
             flash('Access denied. You are not assigned to this class.', 'danger')
             return redirect(url_for('my_students'))
-        
+
         assigned_subjects = current_user.get_assigned_subjects_dict().get(student.class_name, [])
-        
+
         if assigned_subjects:
             attendance_history = Attendance.query.filter(
                 Attendance.student_id == student.id,
@@ -1571,14 +1738,14 @@ def view_student(student_id):
             ).order_by(Attendance.date.desc()).limit(50).all()
         else:
             attendance_history = []
-        
+
         total_classes = len(attendance_history)
         present_count = sum(1 for a in attendance_history if a.status == 'present')
         absent_count = sum(1 for a in attendance_history if a.status == 'absent')
         late_count = sum(1 for a in attendance_history if a.status == 'late')
-        
+
         attendance_percentage = (present_count / total_classes * 100) if total_classes > 0 else 0
-        
+
         subject_stats = {}
         for attendance in attendance_history:
             subject_name = attendance.subject.name if attendance.subject else 'Unknown'
@@ -1587,7 +1754,7 @@ def view_student(student_id):
             subject_stats[subject_name]['total'] += 1
             if attendance.status == 'present':
                 subject_stats[subject_name]['present'] += 1
-        
+
         return render_template('teacher/view_student.html',
                              student=student,
                              attendance_history=attendance_history,
@@ -1606,25 +1773,25 @@ def view_student(student_id):
 @teacher_required
 def teacher_profile():
     """Teacher profile management"""
-    
+
     if request.method == 'POST':
         try:
             current_user.username = request.form.get('username', current_user.username)
             current_user.phone = request.form.get('phone', current_user.phone)
-            
+
             if 'profile_image' in request.files:
                 file = request.files['profile_image']
                 if file and file.filename != '' and allowed_file(file.filename):
                     filename = secure_filename(f"teacher_{current_user.id}_{int(datetime.now(timezone.utc).timestamp())}.jpg")
                     filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'teachers', filename)
                     file.save(filepath)
-                    
+
                     current_user.profile_image = f'uploads/teachers/{filename}'
-            
+
             current_password = request.form.get('current_password')
             new_password = request.form.get('new_password')
             confirm_password = request.form.get('confirm_password')
-            
+
             if current_password and new_password and confirm_password:
                 if not check_password_hash(current_user.password, current_password):
                     flash('Current password is incorrect', 'danger')
@@ -1635,39 +1802,39 @@ def teacher_profile():
                 else:
                     current_user.password = generate_password_hash(new_password)
                     flash('Password changed successfully', 'success')
-            
+
             db.session.commit()
             flash('Profile updated successfully', 'success')
             log_activity('update_profile', 'profile', 'Updated teacher profile')
-            
+
             return redirect(url_for('teacher_profile'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating profile: {str(e)}', 'danger')
             return redirect(url_for('teacher_profile'))
-    
+
     try:
         assigned_classes = current_user.get_assigned_classes_dict()
         class_details = []
-        
+
         for class_name, sections in assigned_classes.items():
             for section in sections:
                 subject_ids = current_user.get_assigned_subjects_dict().get(class_name, [])
                 subjects = Subject.query.filter(Subject.id.in_(subject_ids)).all()
                 subject_names = [s.name for s in subjects]
-                
+
                 student_count = Student.query.filter_by(
                     class_name=class_name,
                     section=section,
                     is_active=True
                 ).count()
-                
+
                 class_details.append({
                     'name': f"{class_name}-{section}",
                     'subjects': subject_names,
                     'students': student_count
                 })
-        
+
         return render_template('teacher/profile.html',
                              class_details=class_details)
     except Exception as e:
@@ -1680,17 +1847,17 @@ def teacher_profile():
 @super_admin_required
 def manage_teachers():
     """Manage teachers - add, edit, deactivate"""
-    
+
     if request.method == 'POST':
         action = request.form.get('action')
-        
+
         try:
             if action == 'add':
                 username = request.form.get('username', '').strip()
                 email = request.form.get('email', '').strip().lower()
                 phone = request.form.get('phone', '').strip()
                 password = request.form.get('password', '')
-                
+
                 if not username or not email or not password:
                     flash('All fields are required', 'danger')
                 elif User.query.filter_by(email=email).first():
@@ -1708,49 +1875,49 @@ def manage_teachers():
                     )
                     db.session.add(teacher)
                     db.session.commit()
-                    
+
                     if 'profile_image' in request.files:
                         file = request.files['profile_image']
                         if file and file.filename != '' and allowed_file(file.filename):
                             filename = secure_filename(f"teacher_{teacher.id}_{int(datetime.now(timezone.utc).timestamp())}.jpg")
                             filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'teachers', filename)
                             file.save(filepath)
-                            
+
                             teacher.profile_image = f'uploads/teachers/{filename}'
                             db.session.commit()
-                    
+
                     flash(f'Teacher {username} added successfully', 'success')
                     log_activity('add_teacher', 'teachers', f"Added teacher: {email}")
-            
+
             elif action == 'edit':
                 teacher_id = request.form.get('teacher_id')
                 teacher = db.session.get(User, teacher_id)
-                
+
                 if teacher:
                     teacher.username = request.form.get('username', teacher.username)
                     teacher.email = request.form.get('email', teacher.email).lower()
                     teacher.phone = request.form.get('phone', teacher.phone)
-                    
+
                     if 'profile_image' in request.files:
                         file = request.files['profile_image']
                         if file and file.filename != '' and allowed_file(file.filename):
                             filename = secure_filename(f"teacher_{teacher.id}_{int(datetime.now(timezone.utc).timestamp())}.jpg")
                             filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'teachers', filename)
                             file.save(filepath)
-                            
+
                             teacher.profile_image = f'uploads/teachers/{filename}'
-                    
+
                     new_password = request.form.get('new_password')
                     if new_password:
                         if len(new_password) >= 6:
                             teacher.password = generate_password_hash(new_password)
                         else:
                             flash('Password must be at least 6 characters', 'warning')
-                    
+
                     db.session.commit()
                     flash('Teacher updated successfully', 'success')
                     log_activity('update_teacher', 'teachers', f"Updated teacher: {teacher.email}")
-            
+
             elif action == 'toggle_status':
                 teacher_id = request.form.get('teacher_id')
                 teacher = db.session.get(User, teacher_id)
@@ -1760,67 +1927,67 @@ def manage_teachers():
                     status = "activated" if teacher.is_active else "deactivated"
                     flash(f'Teacher {status}', 'warning' if teacher.is_active else 'danger')
                     log_activity('toggle_teacher', 'teachers', f"{status} teacher: {teacher.email}")
-            
+
             elif action == 'assign':
                 teacher_id = request.form.get('teacher_id')
                 teacher = db.session.get(User, teacher_id)
-                
+
                 if teacher:
                     assigned_classes = {}
                     assigned_subjects = {}
-                    
+
                     for key in request.form:
                         if key.startswith('class_'):
                             parts = key.split('_')
                             if len(parts) >= 3:
                                 class_name = parts[1]
                                 section = parts[2]
-                                
+
                                 if class_name not in assigned_classes:
                                     assigned_classes[class_name] = []
                                 if section not in assigned_classes[class_name]:
                                     assigned_classes[class_name].append(section)
-                    
+
                     for key in request.form:
                         if key.startswith('subject_'):
                             parts = key.split('_')
                             if len(parts) >= 3:
                                 class_name = parts[1]
                                 subject_id = parts[2]
-                                
+
                                 if class_name not in assigned_subjects:
                                     assigned_subjects[class_name] = []
                                 if subject_id not in assigned_subjects[class_name]:
                                     assigned_subjects[class_name].append(subject_id)
-                    
+
                     teacher.assigned_classes = json.dumps(assigned_classes)
                     teacher.assigned_subjects = json.dumps(assigned_subjects)
                     db.session.commit()
-                    
+
                     flash(f'Classes and subjects assigned to {teacher.username}', 'success')
                     log_activity('assign_teacher', 'teachers', f"Assigned classes to {teacher.username}")
-            
+
             return redirect(url_for('manage_teachers'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error: {str(e)}', 'danger')
             return redirect(url_for('manage_teachers'))
-    
+
     try:
         teachers = User.query.filter_by(role='teacher').order_by(
             db.case((User.is_active == True, 0), else_=1),
             User.created_at.desc()
         ).all()
-        
+
         classes = Class.query.all()
         subjects = Subject.query.all()
-        
+
         # Parse assigned classes and subjects for each teacher
         teachers_data = []
         for teacher in teachers:
             assigned_classes = teacher.get_assigned_classes_dict()
             assigned_subjects = teacher.get_assigned_subjects_dict()
-            
+
             teachers_data.append({
                 'id': teacher.id,
                 'username': teacher.username,
@@ -1832,7 +1999,7 @@ def manage_teachers():
                 'assigned_classes': assigned_classes,
                 'assigned_subjects': assigned_subjects
             })
-        
+
         return render_template('admin/manage_teachers.html', 
                              teachers=teachers_data,
                              classes=classes,
@@ -1846,19 +2013,19 @@ def manage_teachers():
 @super_admin_required
 def assign_teacher_form(teacher_id):
     """Form to assign classes and subjects to teacher"""
-    
+
     try:
         teacher = db.session.get(User, teacher_id)
         if not teacher:
             flash('Teacher not found', 'danger')
             return redirect(url_for('manage_teachers'))
-        
+
         classes = Class.query.all()
         subjects = Subject.query.all()
-        
+
         assigned_classes = teacher.get_assigned_classes_dict()
         assigned_subjects = teacher.get_assigned_subjects_dict()
-        
+
         return render_template('admin/assign_teacher.html',
                              teacher=teacher,
                              classes=classes,
@@ -1874,10 +2041,10 @@ def assign_teacher_form(teacher_id):
 @super_admin_required
 def manage_students():
     """Manage students - add, edit, deactivate"""
-    
+
     if request.method == 'POST':
         action = request.form.get('action')
-        
+
         try:
             if action == 'add':
                 roll_number = request.form.get('roll_number', '').strip()
@@ -1890,7 +2057,7 @@ def manage_students():
                 section = request.form.get('section', '').strip().upper()
                 address = request.form.get('address', '').strip()
                 dob = request.form.get('date_of_birth', '')
-                
+
                 if not roll_number or not name or not father_phone or not class_name or not section:
                     flash('Required fields are missing', 'danger')
                 else:
@@ -1906,33 +2073,33 @@ def manage_students():
                         address=address,
                         is_active=True
                     )
-                    
+
                     if dob:
                         try:
                             student.date_of_birth = datetime.strptime(dob, '%Y-%m-%d').date()
                         except:
                             pass
-                    
+
                     db.session.add(student)
                     db.session.commit()
-                    
+
                     if 'photo' in request.files:
                         file = request.files['photo']
                         if file and file.filename != '' and allowed_file(file.filename):
                             filename = secure_filename(f"student_{student.id}_{int(datetime.now(timezone.utc).timestamp())}.jpg")
                             filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'students', filename)
                             file.save(filepath)
-                            
+
                             student.photo = f'uploads/students/{filename}'
                             db.session.commit()
-                    
+
                     flash(f'Student {name} added successfully', 'success')
                     log_activity('add_student', 'students', f"Added student: {name}")
-            
+
             elif action == 'edit':
                 student_id = request.form.get('student_id')
                 student = db.session.get(Student, student_id)
-                
+
                 if student:
                     student.roll_number = request.form.get('roll_number', student.roll_number)
                     student.name = request.form.get('name', student.name)
@@ -1943,27 +2110,27 @@ def manage_students():
                     student.class_name = request.form.get('class_name', student.class_name)
                     student.section = request.form.get('section', student.section).upper()
                     student.address = request.form.get('address', student.address)
-                    
+
                     dob = request.form.get('date_of_birth')
                     if dob:
                         try:
                             student.date_of_birth = datetime.strptime(dob, '%Y-%m-%d').date()
                         except:
                             pass
-                    
+
                     if 'photo' in request.files:
                         file = request.files['photo']
                         if file and file.filename != '' and allowed_file(file.filename):
                             filename = secure_filename(f"student_{student.id}_{int(datetime.now(timezone.utc).timestamp())}.jpg")
                             filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'students', filename)
                             file.save(filepath)
-                            
+
                             student.photo = f'uploads/students/{filename}'
-                    
+
                     db.session.commit()
                     flash('Student updated successfully', 'success')
                     log_activity('update_student', 'students', f"Updated student: {student.name}")
-            
+
             elif action == 'toggle_status':
                 student_id = request.form.get('student_id')
                 student = db.session.get(Student, student_id)
@@ -1973,42 +2140,42 @@ def manage_students():
                     status = "activated" if student.is_active else "deactivated"
                     flash(f'Student {status}', 'warning' if student.is_active else 'danger')
                     log_activity('toggle_student', 'students', f"{status} student: {student.name}")
-            
+
             return redirect(url_for('manage_students'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error: {str(e)}', 'danger')
             return redirect(url_for('manage_students'))
-    
+
     try:
         class_filter = request.args.get('class', 'all')
         section_filter = request.args.get('section', 'all')
         status_filter = request.args.get('status', 'active')
-        
+
         query = Student.query
-        
+
         if class_filter != 'all':
             query = query.filter_by(class_name=class_filter)
-        
+
         if section_filter != 'all':
             query = query.filter_by(section=section_filter)
-        
+
         if status_filter == 'active':
             query = query.filter_by(is_active=True)
         elif status_filter == 'inactive':
             query = query.filter_by(is_active=False)
-        
+
         page = request.args.get('page', 1, type=int)
         per_page = 20
-        
+
         students = query.order_by(
             Student.class_name, 
             Student.section, 
             Student.roll_number
         ).paginate(page=page, per_page=per_page, error_out=False)
-        
+
         classes = Class.query.order_by(Class.name).all()
-        
+
         sections = []
         if class_filter != 'all':
             class_obj = Class.query.filter_by(name=class_filter).first()
@@ -2017,7 +2184,7 @@ def manage_students():
                     sections = json.loads(class_obj.sections)
                 except:
                     sections = []
-        
+
         return render_template('admin/manage_students.html',
                              students=students,
                              classes=classes,
@@ -2037,13 +2204,13 @@ def manage_classes():
     """Manage classes and sections"""
     if request.method == 'POST':
         action = request.form.get('action')
-        
+
         try:
             if action == 'add':
                 name = request.form.get('name', '').strip()
                 description = request.form.get('description', '').strip()
                 sections_input = request.form.get('sections', '').strip().upper()
-                
+
                 if not name:
                     flash('Class name is required', 'danger')
                 elif Class.query.filter_by(name=name).first():
@@ -2052,7 +2219,7 @@ def manage_classes():
                     sections = [s.strip() for s in sections_input.split(',') if s.strip()]
                     if not sections:
                         sections = ['A']
-                    
+
                     class_obj = Class(
                         name=name,
                         sections=json.dumps(sections),
@@ -2060,35 +2227,35 @@ def manage_classes():
                     )
                     db.session.add(class_obj)
                     db.session.commit()
-                    
+
                     flash(f'Class {name} added successfully', 'success')
                     log_activity('add_class', 'classes', f"Added class: {name}")
-            
+
             elif action == 'edit':
                 class_id = request.form.get('class_id')
                 class_obj = db.session.get(Class, class_id)
-                
+
                 if class_obj:
                     class_obj.description = request.form.get('description', class_obj.description)
                     sections_input = request.form.get('sections', '').strip().upper()
-                    
+
                     if sections_input:
                         sections = [s.strip() for s in sections_input.split(',') if s.strip()]
                         if sections:
                             class_obj.sections = json.dumps(sections)
-                    
+
                     class_teacher_id = request.form.get('class_teacher_id')
                     if class_teacher_id:
                         class_obj.class_teacher_id = int(class_teacher_id) if class_teacher_id != '0' else None
-                    
+
                     db.session.commit()
                     flash('Class updated successfully', 'success')
                     log_activity('update_class', 'classes', f"Updated class: {class_obj.name}")
-            
+
             elif action == 'delete':
                 class_id = request.form.get('class_id')
                 class_obj = db.session.get(Class, class_id)
-                
+
                 if class_obj:
                     # Check if there are students in this class
                     student_count = Student.query.filter_by(class_name=class_obj.name, is_active=True).count()
@@ -2099,17 +2266,17 @@ def manage_classes():
                         db.session.commit()
                         flash(f'Class {class_obj.name} deleted', 'success')
                         log_activity('delete_class', 'classes', f"Deleted class: {class_obj.name}")
-            
+
             return redirect(url_for('manage_classes'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error: {str(e)}', 'danger')
             return redirect(url_for('manage_classes'))
-    
+
     try:
         classes = Class.query.order_by(Class.name).all()
         teachers = User.query.filter_by(role='teacher', is_active=True).all()
-        
+
         # Parse sections JSON for each class
         classes_data = []
         for class_obj in classes:
@@ -2117,7 +2284,7 @@ def manage_classes():
                 sections = json.loads(class_obj.sections)
             except:
                 sections = []
-            
+
             classes_data.append({
                 'id': class_obj.id,
                 'name': class_obj.name,
@@ -2127,7 +2294,7 @@ def manage_classes():
                 'class_teacher_id': class_obj.class_teacher_id,
                 'created_at': class_obj.created_at
             })
-        
+
         return render_template('admin/manage_classes.html',
                              classes=classes_data,
                              teachers=teachers)
@@ -2142,13 +2309,13 @@ def manage_subjects():
     """Manage subjects"""
     if request.method == 'POST':
         action = request.form.get('action')
-        
+
         try:
             if action == 'add':
                 name = request.form.get('name', '').strip()
                 code = request.form.get('code', '').strip().upper()
                 description = request.form.get('description', '').strip()
-                
+
                 if not name:
                     flash('Subject name is required', 'danger')
                 elif Subject.query.filter_by(name=name).first():
@@ -2163,32 +2330,32 @@ def manage_subjects():
                     )
                     db.session.add(subject)
                     db.session.commit()
-                    
+
                     flash(f'Subject {name} added successfully', 'success')
                     log_activity('add_subject', 'subjects', f"Added subject: {name}")
-            
+
             elif action == 'edit':
                 subject_id = request.form.get('subject_id')
                 subject = db.session.get(Subject, subject_id)
-                
+
                 if subject:
                     subject.name = request.form.get('name', subject.name)
                     subject.code = request.form.get('code', subject.code).upper()
                     subject.description = request.form.get('description', subject.description)
-                    
+
                     db.session.commit()
                     flash('Subject updated successfully', 'success')
                     log_activity('update_subject', 'subjects', f"Updated subject: {subject.name}")
-            
+
             elif action == 'delete':
                 subject_id = request.form.get('subject_id')
                 subject = db.session.get(Subject, subject_id)
-                
+
                 if subject:
                     # Check if subject is assigned to any teacher
                     assignment_count = TeacherAssignment.query.filter_by(subject_id=subject.id).count()
                     attendance_count = Attendance.query.filter_by(subject_id=subject.id).count()
-                    
+
                     if assignment_count > 0 or attendance_count > 0:
                         flash(f'Cannot delete subject {subject.name}. It is being used in {assignment_count} assignments and {attendance_count} attendance records.', 'danger')
                     else:
@@ -2196,16 +2363,16 @@ def manage_subjects():
                         db.session.commit()
                         flash(f'Subject {subject.name} deleted', 'success')
                         log_activity('delete_subject', 'subjects', f"Deleted subject: {subject.name}")
-            
+
             return redirect(url_for('manage_subjects'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error: {str(e)}', 'danger')
             return redirect(url_for('manage_subjects'))
-    
+
     try:
         subjects = Subject.query.order_by(Subject.name).all()
-        
+
         return render_template('admin/manage_subjects.html',
                              subjects=subjects)
     except Exception as e:
@@ -2222,7 +2389,7 @@ def system_settings():
         settings = SystemSettings()
         db.session.add(settings)
         db.session.commit()
-    
+
     if request.method == 'POST':
         try:
             settings.school_name = request.form.get('school_name', settings.school_name)
@@ -2234,7 +2401,7 @@ def system_settings():
             settings.theme_color = request.form.get('theme_color', settings.theme_color)
             settings.secondary_color = request.form.get('secondary_color', settings.secondary_color)
             settings.accent_color = request.form.get('accent_color', settings.accent_color)
-            
+
             # Handle head teacher signature upload
             if 'head_teacher_signature' in request.files:
                 file = request.files['head_teacher_signature']
@@ -2242,19 +2409,19 @@ def system_settings():
                     filename = secure_filename(f"signature_{int(datetime.now(timezone.utc).timestamp())}.png")
                     filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'signatures', filename)
                     file.save(filepath)
-                    
+
                     settings.head_teacher_signature = f'uploads/signatures/{filename}'
-            
+
             db.session.commit()
             flash('System settings updated successfully', 'success')
             log_activity('update_settings', 'system', 'Updated system settings')
-            
+
             return redirect(url_for('system_settings'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating settings: {str(e)}', 'danger')
             return redirect(url_for('system_settings'))
-    
+
     return render_template('admin/system_settings.html',
                          settings=settings)
 
@@ -2268,7 +2435,7 @@ def sms_config():
         config = SMSConfig()
         db.session.add(config)
         db.session.commit()
-    
+
     if request.method == 'POST':
         try:
             config.api_key = request.form.get('api_key', config.api_key)
@@ -2277,17 +2444,17 @@ def sms_config():
             config.max_concurrent = int(request.form.get('max_concurrent', config.max_concurrent))
             config.rate_limit_per_minute = int(request.form.get('rate_limit_per_minute', config.rate_limit_per_minute))
             config.enabled = 'enabled' in request.form
-            
+
             db.session.commit()
             flash('SMS configuration updated successfully', 'success')
             log_activity('update_sms_config', 'sms', 'Updated SMS configuration')
-            
+
             return redirect(url_for('sms_config'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating SMS config: {str(e)}', 'danger')
             return redirect(url_for('sms_config'))
-    
+
     return render_template('admin/sms_config.html',
                          config=config)
 
@@ -2298,12 +2465,12 @@ def manage_messages():
     """Manage SMS message templates"""
     if request.method == 'POST':
         action = request.form.get('action')
-        
+
         try:
             if action == 'add':
                 message_type = request.form.get('message_type', '').strip()
                 message_text = request.form.get('message_text', '').strip()
-                
+
                 if not message_type or not message_text:
                     flash('All fields are required', 'danger')
                 else:
@@ -2313,41 +2480,41 @@ def manage_messages():
                     )
                     db.session.add(message)
                     db.session.commit()
-                    
+
                     flash(f'Message template for {message_type} added successfully', 'success')
                     log_activity('add_message', 'messages', f"Added message template: {message_type}")
-            
+
             elif action == 'edit':
                 message_id = request.form.get('message_id')
                 message = db.session.get(CustomMessage, message_id)
-                
+
                 if message:
                     message.message_type = request.form.get('message_type', message.message_type)
                     message.message_text = request.form.get('message_text', message.message_text)
-                    
+
                     db.session.commit()
                     flash('Message template updated successfully', 'success')
                     log_activity('update_message', 'messages', f"Updated message template: {message.message_type}")
-            
+
             elif action == 'delete':
                 message_id = request.form.get('message_id')
                 message = db.session.get(CustomMessage, message_id)
-                
+
                 if message:
                     db.session.delete(message)
                     db.session.commit()
                     flash('Message template deleted', 'success')
                     log_activity('delete_message', 'messages', f"Deleted message template: {message.message_type}")
-            
+
             return redirect(url_for('manage_messages'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error: {str(e)}', 'danger')
             return redirect(url_for('manage_messages'))
-    
+
     try:
         messages = CustomMessage.query.order_by(CustomMessage.message_type).all()
-        
+
         return render_template('admin/manage_messages.html',
                              messages=messages)
     except Exception as e:
@@ -2361,13 +2528,13 @@ def manage_quotes():
     """Manage daily motivational quotes"""
     if request.method == 'POST':
         action = request.form.get('action')
-        
+
         try:
             if action == 'add':
                 quote = request.form.get('quote', '').strip()
                 author = request.form.get('author', '').strip()
                 category = request.form.get('category', 'motivation').strip()
-                
+
                 if not quote:
                     flash('Quote text is required', 'danger')
                 else:
@@ -2379,43 +2546,43 @@ def manage_quotes():
                     )
                     db.session.add(daily_quote)
                     db.session.commit()
-                    
+
                     flash('Quote added successfully', 'success')
                     log_activity('add_quote', 'quotes', 'Added new quote')
-            
+
             elif action == 'edit':
                 quote_id = request.form.get('quote_id')
                 daily_quote = db.session.get(DailyQuote, quote_id)
-                
+
                 if daily_quote:
                     daily_quote.quote = request.form.get('quote', daily_quote.quote)
                     daily_quote.author = request.form.get('author', daily_quote.author)
                     daily_quote.category = request.form.get('category', daily_quote.category)
                     daily_quote.is_active = 'is_active' in request.form
-                    
+
                     db.session.commit()
                     flash('Quote updated successfully', 'success')
                     log_activity('update_quote', 'quotes', f"Updated quote ID: {quote_id}")
-            
+
             elif action == 'delete':
                 quote_id = request.form.get('quote_id')
                 daily_quote = db.session.get(DailyQuote, quote_id)
-                
+
                 if daily_quote:
                     db.session.delete(daily_quote)
                     db.session.commit()
                     flash('Quote deleted', 'success')
                     log_activity('delete_quote', 'quotes', f"Deleted quote ID: {quote_id}")
-            
+
             return redirect(url_for('manage_quotes'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error: {str(e)}', 'danger')
             return redirect(url_for('manage_quotes'))
-    
+
     try:
         quotes = DailyQuote.query.order_by(DailyQuote.created_at.desc()).all()
-        
+
         return render_template('admin/manage_quotes.html',
                              quotes=quotes)
     except Exception as e:
@@ -2432,9 +2599,9 @@ def reports():
         end_date_str = request.args.get('end_date', '')
         class_filter = request.args.get('class', 'all')
         report_type = request.args.get('report_type', 'attendance')
-        
+
         today = datetime.now(timezone.utc).date()
-        
+
         if start_date_str:
             try:
                 start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
@@ -2442,7 +2609,7 @@ def reports():
                 start_date = today - timedelta(days=30)
         else:
             start_date = today - timedelta(days=30)
-        
+
         if end_date_str:
             try:
                 end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
@@ -2450,28 +2617,28 @@ def reports():
                 end_date = today
         else:
             end_date = today
-        
+
         # Ensure start_date is before end_date
         if start_date > end_date:
             start_date, end_date = end_date, start_date
-        
+
         # Base query for attendance
         attendance_query = Attendance.query.filter(
             Attendance.date >= start_date,
             Attendance.date <= end_date
         )
-        
+
         if class_filter != 'all':
             attendance_query = attendance_query.filter_by(class_name=class_filter)
-        
+
         total_attendance = attendance_query.count()
         present_count = attendance_query.filter_by(status='present').count()
         absent_count = attendance_query.filter_by(status='absent').count()
-        
+
         # Get class-wise statistics
         class_stats = []
         classes = Class.query.order_by(Class.name).all()
-        
+
         for class_obj in classes:
             if class_filter == 'all' or class_obj.name == class_filter:
                 class_attendance = Attendance.query.filter(
@@ -2479,16 +2646,16 @@ def reports():
                     Attendance.date >= start_date,
                     Attendance.date <= end_date
                 )
-                
+
                 class_total = class_attendance.count()
                 class_present = class_attendance.filter_by(status='present').count()
                 class_absent = class_attendance.filter_by(status='absent').count()
-                
+
                 if class_total > 0:
                     attendance_rate = (class_present / class_total) * 100
                 else:
                     attendance_rate = 0
-                
+
                 class_stats.append({
                     'class': class_obj.name,
                     'total': class_total,
@@ -2496,43 +2663,43 @@ def reports():
                     'absent': class_absent,
                     'rate': attendance_rate
                 })
-        
+
         # Get daily attendance trend
         daily_trend = []
         current_date = start_date
         while current_date <= end_date:
             day_attendance = Attendance.query.filter_by(date=current_date).count()
             day_present = Attendance.query.filter_by(date=current_date, status='present').count()
-            
+
             if day_attendance > 0:
                 day_rate = (day_present / day_attendance) * 100
             else:
                 day_rate = 0
-            
+
             daily_trend.append({
                 'date': current_date,
                 'total': day_attendance,
                 'present': day_present,
                 'rate': day_rate
             })
-            
+
             current_date += timedelta(days=1)
-        
+
         # Get teacher statistics
         teacher_stats = []
         teachers = User.query.filter_by(role='teacher', is_active=True).all()
-        
+
         for teacher in teachers:
             teacher_attendance = Attendance.query.filter_by(teacher_id=teacher.id).filter(
                 Attendance.date >= start_date,
                 Attendance.date <= end_date
             ).count()
-            
+
             teacher_stats.append({
                 'teacher': teacher.username,
                 'total': teacher_attendance
             })
-        
+
         return render_template('admin/reports.html',
                              start_date=start_date,
                              end_date=end_date,
@@ -2559,27 +2726,27 @@ def activity_log():
         user_filter = request.args.get('user', 'all')
         action_filter = request.args.get('action', 'all')
         module_filter = request.args.get('module', 'all')
-        
+
         query = ActivityLog.query
-        
+
         if user_filter != 'all':
             query = query.filter_by(user_id=int(user_filter))
-        
+
         if action_filter != 'all':
             query = query.filter_by(action=action_filter)
-        
+
         if module_filter != 'all':
             query = query.filter_by(module=module_filter)
-        
+
         logs = query.order_by(ActivityLog.created_at.desc())\
                    .paginate(page=page, per_page=50, error_out=False)
-        
+
         users = User.query.all()
-        
+
         # Get unique actions and modules for filter dropdowns
         actions = db.session.query(ActivityLog.action).distinct().all()
         modules = db.session.query(ActivityLog.module).distinct().all()
-        
+
         return render_template('admin/activity_log.html',
                              logs=logs,
                              users=users,
@@ -2607,16 +2774,16 @@ def backup_system():
                 log_activity('backup_failed', 'system', 'Failed to create system backup')
         except Exception as e:
             flash(f'Backup error: {str(e)}', 'danger')
-        
+
         return redirect(url_for('backup_system'))
-    
+
     try:
         # Get backup logs
         backup_logs = BackupLog.query.order_by(BackupLog.created_at.desc()).limit(20).all()
-        
+
         # Get database size
         db_size = get_database_size()
-        
+
         return render_template('admin/backup.html',
                              backup_logs=backup_logs,
                              db_size=db_size)
@@ -2629,18 +2796,18 @@ def backup_system():
 @login_required
 def get_students_by_class(class_name, section):
     """API to get students by class and section"""
-    
+
     try:
         if current_user.role == 'teacher':
             if not current_user.is_assigned_to(class_name, section):
                 return jsonify({'error': 'Not authorized for this class'}), 403
-        
+
         students = Student.query.filter_by(
             class_name=class_name,
             section=section,
             is_active=True
         ).order_by(Student.roll_number).all()
-        
+
         student_list = []
         for student in students:
             student_list.append({
@@ -2653,7 +2820,7 @@ def get_students_by_class(class_name, section):
                 'section': student.section,
                 'photo_url': url_for('static', filename=student.photo) if student.photo else None
             })
-        
+
         return jsonify({'students': student_list})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -2662,17 +2829,17 @@ def get_students_by_class(class_name, section):
 @login_required
 def get_subjects_by_class(class_name):
     """API to get subjects for a class"""
-    
+
     try:
         if current_user.role == 'teacher':
             subject_ids = current_user.get_assigned_subjects_dict().get(class_name, [])
             if not subject_ids:
                 return jsonify({'subjects': []})
-            
+
             subjects = Subject.query.filter(Subject.id.in_(subject_ids)).all()
         else:
             subjects = Subject.query.all()
-        
+
         subject_list = []
         for subject in subjects:
             subject_list.append({
@@ -2680,7 +2847,7 @@ def get_subjects_by_class(class_name):
                 'name': subject.name,
                 'code': subject.code
             })
-        
+
         return jsonify({'subjects': subject_list})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -2689,17 +2856,17 @@ def get_subjects_by_class(class_name):
 @login_required
 def check_attendance(date, class_name, section, subject_id):
     """Check if attendance already taken for given date, class, section, subject"""
-    
+
     try:
         attendance_date = datetime.strptime(date, '%Y-%m-%d').date()
     except:
         return jsonify({'error': 'Invalid date format'}), 400
-    
+
     try:
         if current_user.role == 'teacher':
             if not current_user.is_assigned_to(class_name, section, subject_id):
                 return jsonify({'error': 'Not authorized'}), 403
-        
+
         session = AttendanceSession.query.filter_by(
             teacher_id=current_user.id,
             class_name=class_name,
@@ -2707,7 +2874,7 @@ def check_attendance(date, class_name, section, subject_id):
             subject_id=subject_id,
             date=attendance_date
         ).first()
-        
+
         if session:
             attendance = Attendance.query.filter_by(
                 teacher_id=current_user.id,
@@ -2716,7 +2883,7 @@ def check_attendance(date, class_name, section, subject_id):
                 subject_id=subject_id,
                 date=attendance_date
             ).all()
-            
+
             attendance_list = []
             for att in attendance:
                 attendance_list.append({
@@ -2724,7 +2891,7 @@ def check_attendance(date, class_name, section, subject_id):
                     'status': att.status,
                     'notes': att.notes or ''
                 })
-            
+
             return jsonify({
                 'exists': True,
                 'session_id': session.id,
@@ -2737,7 +2904,7 @@ def check_attendance(date, class_name, section, subject_id):
                     'absent': session.absent_count
                 }
             })
-        
+
         return jsonify({'exists': False})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -2778,16 +2945,16 @@ def backup_db():
     try:
         if not os.path.exists(database_path):
             return False
-        
+
         backup_dir = os.path.join(instance_path, 'backups')
         os.makedirs(backup_dir, exist_ok=True)
-        
+
         timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
         backup_file = os.path.join(backup_dir, f'dewra_backup_{timestamp}.db')
-        
+
         import shutil
         shutil.copy2(database_path, backup_file)
-        
+
         backup_size = os.path.getsize(backup_file)
         backup_log = BackupLog(
             backup_type='manual',
@@ -2798,14 +2965,14 @@ def backup_db():
         )
         db.session.add(backup_log)
         db.session.commit()
-        
+
         cleanup_old_backups(backup_dir, days=30)
-        
+
         return True
-        
+
     except Exception as e:
         app.logger.error(f"Backup error: {str(e)}")
-        
+
         try:
             backup_log = BackupLog(
                 backup_type='manual',
@@ -2818,7 +2985,7 @@ def backup_db():
             db.session.commit()
         except:
             pass
-        
+
         return False
 
 def cleanup_old_backups(backup_dir, days=30):
@@ -2829,7 +2996,7 @@ def cleanup_old_backups(backup_dir, days=30):
             if filename.startswith('dewra_backup_') and filename.endswith('.db'):
                 filepath = os.path.join(backup_dir, filename)
                 file_time = datetime.fromtimestamp(os.path.getmtime(filepath), tz=timezone.utc)
-                
+
                 if (now - file_time).days > days:
                     os.remove(filepath)
                     app.logger.info(f"Removed old backup: {filename}")
@@ -2844,18 +3011,18 @@ def uploaded_file(filename):
 # ============= INITIALIZATION =============
 def initialize_system():
     """Initialize system with default data"""
-    
+
     with app.app_context():
         try:
             if not os.path.exists(database_path):
                 print(f"Creating database file at: {database_path}")
                 open(database_path, 'w').close()
                 os.chmod(database_path, 0o644)
-            
+
             print("Creating database tables...")
             db.create_all()
             print("✅ Database tables created")
-            
+
             if not User.query.filter_by(role='super_admin').first():
                 admin = User(
                     username='admin',
@@ -2870,7 +3037,7 @@ def initialize_system():
                 print("✅ Created super admin: admin@dewra.edu.bd / Admin@2025")
             else:
                 print("✅ Super admin already exists")
-            
+
             if SMSConfig.query.count() == 0:
                 sms_config = SMSConfig(
                     api_key='',
@@ -2882,13 +3049,13 @@ def initialize_system():
                 )
                 db.session.add(sms_config)
                 print("✅ Created default SMS config")
-                
+
                 if SMSGATE_USERNAME and SMSGATE_PASSWORD:
                     print("✅ SMSGate credentials found in environment")
                 else:
                     print("⚠️  SMSGate credentials not configured")
                     print("   Set environment variables: SMSGATE_USERNAME and SMSGATE_PASSWORD")
-            
+
             if Class.query.count() == 0:
                 classes_data = [
                     {'name': '6', 'sections': ['A', 'B', 'C'], 'description': 'Class Six'},
@@ -2897,7 +3064,7 @@ def initialize_system():
                     {'name': '9', 'sections': ['A', 'B'], 'description': 'Class Nine'},
                     {'name': '10', 'sections': ['A', 'B'], 'description': 'Class Ten'},
                 ]
-                
+
                 for class_data in classes_data:
                     class_obj = Class(
                         name=class_data['name'],
@@ -2906,7 +3073,7 @@ def initialize_system():
                     )
                     db.session.add(class_obj)
                 print("✅ Created default classes")
-            
+
             if Subject.query.count() == 0:
                 subjects = [
                     {'name': 'Bangla', 'code': 'BAN', 'description': 'Bangla Language and Literature'},
@@ -2918,7 +3085,7 @@ def initialize_system():
                     {'name': 'ICT', 'code': 'ICT', 'description': 'Information and Communication Technology'},
                     {'name': 'Physical Education', 'code': 'PE', 'description': 'Physical Education and Health'},
                 ]
-                
+
                 for subject_data in subjects:
                     subject = Subject(
                         name=subject_data['name'],
@@ -2927,12 +3094,12 @@ def initialize_system():
                     )
                     db.session.add(subject)
                 print("✅ Created default subjects")
-            
+
             if SystemSettings.query.count() == 0:
                 settings = SystemSettings()
                 db.session.add(settings)
                 print("✅ Created system settings")
-            
+
             if DailyQuote.query.count() == 0:
                 quotes = [
                     {
@@ -2971,7 +3138,7 @@ def initialize_system():
                         'category': 'motivation'
                     }
                 ]
-                
+
                 for quote_data in quotes:
                     quote = DailyQuote(
                         quote=quote_data['quote'],
@@ -2981,10 +3148,10 @@ def initialize_system():
                     )
                     db.session.add(quote)
                 print("✅ Created default quotes")
-            
+
             db.session.commit()
             print("🎉 System initialization complete!")
-            
+
         except Exception as e:
             db.session.rollback()
             print(f"❌ System initialization failed: {str(e)}")
@@ -3012,18 +3179,18 @@ if __name__ == '__main__':
         print(f"Database path: {database_path}")
         print(f"Instance path: {instance_path}")
         print(f"Current working directory: {os.getcwd()}")
-        
+
         if not os.path.exists(database_path):
             print(f"Creating database file at: {database_path}")
             os.makedirs(os.path.dirname(database_path), exist_ok=True)
             open(database_path, 'w').close()
-        
+
         with app.app_context():
             initialize_system()
     except Exception as e:
         print(f"⚠️  Initialization warning: {str(e)}")
         print("⚠️  Trying to continue anyway...")
-    
+
     print("=" * 60)
     print("🎓 Dewra High School Smart Attendance System")
     print("=" * 60)
@@ -3039,11 +3206,11 @@ if __name__ == '__main__':
     print("💡 Remember: Every student is nuclear energy!")
     print("✨ Made with ❤️ for Dewra High School")
     print("=" * 60)
-    
+
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler()
-        
+
         @scheduler.scheduled_job('cron', hour=2, minute=0)
         def scheduled_backup():
             with app.app_context():
@@ -3052,13 +3219,13 @@ if __name__ == '__main__':
                     print("✅ Scheduled backup completed")
                 except:
                     print("⚠️ Scheduled backup failed")
-        
+
         scheduler.start()
         print("✅ Backup scheduler started")
     except Exception as e:
         print(f"⚠️  Could not start backup scheduler: {str(e)}")
         print("⚠️  Continuing without scheduled backups...")
-    
+
     app.run(
         debug=os.getenv('FLASK_DEBUG', 'True').lower() == 'true',
         host='0.0.0.0',
