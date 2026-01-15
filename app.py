@@ -403,6 +403,51 @@ def generate_qr_code(data, filename):
         app.logger.error(f"Error generating QR code: {str(e)}")
         return None
 
+# ============= JINJA2 FILTERS =============
+@app.template_filter('from_json')
+def from_json_filter(value):
+    """Convert JSON string to Python object"""
+    if not value:
+        return {}
+    try:
+        return json.loads(value)
+    except:
+        return {}
+
+@app.template_filter('to_json')
+def to_json_filter(value):
+    """Convert Python object to JSON string"""
+    try:
+        return json.dumps(value)
+    except:
+        return '{}'
+
+@app.template_filter('format_date')
+def format_date_filter(value, format='%d %b, %Y'):
+    """Format date"""
+    if not value:
+        return ''
+    try:
+        if isinstance(value, str):
+            value = datetime.strptime(value, '%Y-%m-%d')
+        return value.strftime(format)
+    except:
+        return value
+
+@app.template_filter('format_phone')
+def format_phone_filter(phone):
+    """Format phone number"""
+    if not phone:
+        return ''
+    phone = re.sub(r'\D', '', phone)
+    if len(phone) == 11 and phone.startswith('01'):
+        return f'+880{phone[1:]}'
+    elif len(phone) == 10:
+        return f'+880{phone}'
+    elif phone.startswith('880') and len(phone) == 13:
+        return f'+{phone}'
+    return phone
+
 # ============= CONTEXT PROCESSORS =============
 @app.context_processor
 def inject_datetime():
@@ -1770,8 +1815,26 @@ def manage_teachers():
         classes = Class.query.all()
         subjects = Subject.query.all()
         
+        # Parse assigned classes and subjects for each teacher
+        teachers_data = []
+        for teacher in teachers:
+            assigned_classes = teacher.get_assigned_classes_dict()
+            assigned_subjects = teacher.get_assigned_subjects_dict()
+            
+            teachers_data.append({
+                'id': teacher.id,
+                'username': teacher.username,
+                'email': teacher.email,
+                'phone': teacher.phone,
+                'profile_image': teacher.profile_image,
+                'is_active': teacher.is_active,
+                'created_at': teacher.created_at,
+                'assigned_classes': assigned_classes,
+                'assigned_subjects': assigned_subjects
+            })
+        
         return render_template('admin/manage_teachers.html', 
-                             teachers=teachers,
+                             teachers=teachers_data,
                              classes=classes,
                              subjects=subjects)
     except Exception as e:
@@ -1793,8 +1856,8 @@ def assign_teacher_form(teacher_id):
         classes = Class.query.all()
         subjects = Subject.query.all()
         
-        assigned_classes = json.loads(teacher.assigned_classes) if teacher.assigned_classes else {}
-        assigned_subjects = json.loads(teacher.assigned_subjects) if teacher.assigned_subjects else {}
+        assigned_classes = teacher.get_assigned_classes_dict()
+        assigned_subjects = teacher.get_assigned_subjects_dict()
         
         return render_template('admin/assign_teacher.html',
                              teacher=teacher,
@@ -1950,7 +2013,10 @@ def manage_students():
         if class_filter != 'all':
             class_obj = Class.query.filter_by(name=class_filter).first()
             if class_obj:
-                sections = json.loads(class_obj.sections)
+                try:
+                    sections = json.loads(class_obj.sections)
+                except:
+                    sections = []
         
         return render_template('admin/manage_students.html',
                              students=students,
@@ -2044,8 +2110,26 @@ def manage_classes():
         classes = Class.query.order_by(Class.name).all()
         teachers = User.query.filter_by(role='teacher', is_active=True).all()
         
+        # Parse sections JSON for each class
+        classes_data = []
+        for class_obj in classes:
+            try:
+                sections = json.loads(class_obj.sections)
+            except:
+                sections = []
+            
+            classes_data.append({
+                'id': class_obj.id,
+                'name': class_obj.name,
+                'sections': sections,
+                'description': class_obj.description,
+                'class_teacher': class_obj.class_teacher,
+                'class_teacher_id': class_obj.class_teacher_id,
+                'created_at': class_obj.created_at
+            })
+        
         return render_template('admin/manage_classes.html',
-                             classes=classes,
+                             classes=classes_data,
                              teachers=teachers)
     except Exception as e:
         flash(f'Error loading classes: {str(e)}', 'danger')
