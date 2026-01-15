@@ -579,10 +579,9 @@
                     </td>
                     <td>
                         <div class="teacher-info">
-                            {% set assigned_classes = teacher.get_assigned_classes_dict() %}
-                            {% if assigned_classes %}
+                            {% if teacher.assigned_classes %}
                                 {% set class_count = namespace(total=0) %}
-                                {% for class_name, sections in assigned_classes.items() %}
+                                {% for class_name, sections in teacher.assigned_classes.items() %}
                                     {% for section in sections %}
                                         {% set class_count.total = class_count.total + 1 %}
                                     {% endfor %}
@@ -801,6 +800,8 @@ document.addEventListener('DOMContentLoaded', function() {
         teacherForm.reset();
         teacherPassword.required = true;
         teacherConfirmPassword.required = true;
+        teacherPassword.placeholder = 'Enter password';
+        teacherConfirmPassword.placeholder = 'Confirm password';
         
         // Show modal
         teacherModal.classList.add('active');
