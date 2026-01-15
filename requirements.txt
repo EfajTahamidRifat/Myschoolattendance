@@ -25,3 +25,5 @@ APScheduler==3.10.4
 
 # Excel/CSV Export (Optional)
 openpyxl==3.1.2
+
+qrcode
