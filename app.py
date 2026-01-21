@@ -569,7 +569,7 @@ def get_jwt_token():
 
 def send_sms_via_smsgate(phone_numbers, message, retry=1):
     """Send SMS using SMSGate API with improved error handling"""
-    
+
     token, error = get_jwt_token()
     if error:
         app.logger.error(f"SMSGate Token Error: {error}")
@@ -617,16 +617,16 @@ def send_sms_via_smsgate(phone_numbers, message, retry=1):
 
             if response.status_code in (200, 201, 202):
                 status = "Processing" if response.status_code == 202 else "Sent"
-                
+
                 # Parse response to get message ID
                 response_data = {}
                 try:
                     response_data = response.json()
                 except:
                     response_data = {"raw": response.text}
-                
+
                 message_id = response_data.get("messageId") or response_data.get("id") or response_data.get("message_id")
-                
+
                 results.append({
                     "phone": formatted_phone,
                     "success": True,
@@ -636,7 +636,7 @@ def send_sms_via_smsgate(phone_numbers, message, retry=1):
                     "message_id": message_id
                 })
                 app.logger.info(f"SMS sent successfully to {formatted_phone}: {message_id}")
-                
+
             else:
                 error_msg = f"HTTP {response.status_code}"
                 try:
@@ -644,7 +644,7 @@ def send_sms_via_smsgate(phone_numbers, message, retry=1):
                     error_msg = error_data.get("error", str(error_data))
                 except:
                     error_msg = response.text[:200]
-                
+
                 if retry > 0 and response.status_code in [500, 502, 503, 504, 429]:
                     time.sleep(2)
                     app.logger.warning(f"Retrying SMS to {formatted_phone}, Status: {response.status_code}")
@@ -1258,7 +1258,7 @@ def generate_office_style_pdf(attendance_session):
     except Exception as e:
         app.logger.error(f"PDF generation error: {str(e)}\n{traceback.format_exc()}")
         db.session.rollback()
-        
+
         # Try alternative simple PDF
         try:
             return generate_simple_pdf_fallback(attendance_session)
@@ -1372,7 +1372,7 @@ def generate_simple_pdf_fallback(attendance_session):
 
         # Attendance table
         attendance_data = [['SL', 'Roll No.', 'Student Name', 'Status', 'Phone']]
-        
+
         for idx, student in enumerate(students, 1):
             attendance = next((a for a in attendance_records if a.student_id == student.id), None)
             status = attendance.status if attendance else "Absent"
@@ -1405,7 +1405,7 @@ def generate_simple_pdf_fallback(attendance_session):
         present_count = sum(1 for a in attendance_records if a.status == 'present')
         absent_count = len(students) - present_count
         attendance_rate = (present_count / len(students) * 100) if students else 0
-        
+
         summary_data = [
             ['Total Students:', str(len(students))],
             ['Present:', str(present_count)],
@@ -1503,7 +1503,7 @@ def send_sms_bulk_with_delay(sms_tasks):
                     db.session.add(log)
                 except Exception as e:
                     app.logger.error(f"Error creating SMS log: {str(e)}")
-        
+
         try:
             db.session.commit()
         except:
@@ -1563,7 +1563,7 @@ def send_sms_bulk_with_delay(sms_tasks):
                     attendance = db.session.get(Attendance, att_id)
                     if attendance:
                         attendance.sms_status = 'sent' if success else 'failed'
-                        
+
                         # If failed, log the specific error
                         if not success:
                             app.logger.error(f"SMS failed for attendance {att_id}: {response_msg}")
@@ -1623,7 +1623,7 @@ def process_attendance_sms_with_delay(attendance_session_id):
                 return
 
             app.logger.info(f"Processing SMS for attendance session {attendance_session_id}")
-            
+
             # Get all students for attendance
             attendance_records = Attendance.query.filter_by(
                 teacher_id=attendance_session.teacher_id,
@@ -1668,7 +1668,7 @@ def process_attendance_sms_with_delay(attendance_session_id):
                 )
             else:
                 app.logger.warning("No SMS tasks to process")
-                
+
         except Exception as e:
             app.logger.error(f"Error processing attendance SMS with delay: {str(e)}\n{traceback.format_exc()}")
 
@@ -1704,18 +1704,18 @@ def get_sms_message(student, status, class_name, section, date=None):
             'Saturday': 'শনিবার',
             'Sunday': 'রবিবার'
         }
-        
+
         day_bangla = day_name_bangla.get(date.strftime('%A'), date.strftime('%A'))
-        
+
         # Convert date to Bangla format (DD/MM/YYYY)
         date_bangla = date.strftime('%d/%m/%Y')
-        
+
         status_bangla = {
             'present': 'উপস্থিত',
             'absent': 'অনুপস্থিত',
             'late': 'লেট'
         }.get(status, status)
-        
+
         msg = msg.replace('[Student Name]', student.name)\
                  .replace('[Roll]', str(student.roll_number))\
                  .replace('[Class]', f"{class_name}-{section}")\
@@ -1735,7 +1735,7 @@ def send_custom_sms_bulk(phone_numbers, message):
     sms_tasks = []
     for phone in phone_numbers:
         sms_tasks.append((phone, message, None))
-    
+
     return send_sms_bulk_with_delay(sms_tasks)
 
 # ============= ROUTES =============
@@ -1945,7 +1945,7 @@ def take_attendance():
             data = request.get_json()
             if not data:
                 return jsonify({'success': False, 'error': 'No data received'}), 400
-                
+
             class_name = data.get('class_name')
             section = data.get('section')
             subject_id = data.get('subject_id')
@@ -2003,7 +2003,7 @@ def take_attendance():
                     if str(item.get('student_id')) == str(student.id):
                         student_attendance = item
                         break
-                
+
                 status = student_attendance.get('status') if student_attendance else 'absent'
                 notes = student_attendance.get('notes', '') if student_attendance else ''
 
@@ -2086,7 +2086,7 @@ def take_attendance():
             pdf_download_url = None
             try:
                 pdf_buffer, pdf_url = generate_office_style_pdf(attendance_session)
-                
+
                 if pdf_url:
                     pdf_download_url = url_for('download_attendance_pdf', 
                                               class_name=class_name, 
@@ -2136,13 +2136,13 @@ def take_attendance():
         default_class = None
         default_section = None
         default_subject = None
-        
+
         if assigned_classes:
             for class_name, sections in assigned_classes.items():
                 if sections:
                     default_class = class_name
                     default_section = sections[0]
-                    
+
                     # Get first subject for this class
                     subject_ids = current_user.get_assigned_subjects_dict().get(class_name, [])
                     if subject_ids:
@@ -2259,28 +2259,28 @@ def get_students_alternative():
     try:
         class_name = request.args.get('class')
         section = request.args.get('section')
-        
+
         if not class_name or not section:
             return jsonify({'success': False, 'error': 'Class and section are required'}), 400
-        
+
         # Convert section to uppercase for consistency
         section = section.upper()
-        
+
         app.logger.info(f"Alternative endpoint: Fetching students for {class_name}-{section}")
-        
+
         # Check if teacher is assigned (for teachers only)
         if current_user.role == 'teacher':
             assigned_classes = current_user.get_assigned_classes_dict()
             if class_name not in assigned_classes or section not in assigned_classes[class_name]:
                 return jsonify({'success': False, 'error': 'Not assigned to this class'}), 403
-        
+
         # Query students
         students = Student.query.filter(
             Student.class_name == class_name,
             Student.section == section,
             Student.is_active == True
         ).order_by(Student.roll_number).all()
-        
+
         student_list = []
         for student in students:
             student_list.append({
@@ -2292,17 +2292,69 @@ def get_students_alternative():
                 'class_name': student.class_name,
                 'section': student.section
             })
-        
+
         app.logger.info(f"Alternative endpoint: Found {len(student_list)} students")
-        
+
         return jsonify({
             'success': True,
             'students': student_list,
             'count': len(student_list)
         })
-        
+
     except Exception as e:
         app.logger.error(f"Alternative endpoint error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============= ADDED: MISSING API ENDPOINT FOR STUDENT BY ID =============
+@app.route('/api/student/<int:student_id>')
+@login_required
+def get_student_by_id(student_id):
+    """API to get a single student by ID for editing"""
+    try:
+        if current_user.role == 'teacher':
+            # For teachers, they can only access students in their assigned classes
+            student = db.session.get(Student, student_id)
+            if not student:
+                return jsonify({'success': False, 'error': 'Student not found'}), 404
+            
+            if not current_user.is_assigned_to(student.class_name, student.section):
+                return jsonify({'success': False, 'error': 'You are not assigned to this student\'s class'}), 403
+        
+        # Super admin can access any student
+        student = db.session.get(Student, student_id)
+        if not student:
+            return jsonify({'success': False, 'error': 'Student not found'}), 404
+
+        # Build photo URL if exists
+        photo_url = None
+        if student.photo:
+            if student.photo.startswith('http'):
+                photo_url = student.photo
+            else:
+                photo_url = url_for('uploaded_file', filename=student.photo.replace('uploads/', ''))
+
+        student_data = {
+            'id': student.id,
+            'roll_number': student.roll_number,
+            'name': student.name,
+            'father_name': student.father_name or '',
+            'father_phone': student.father_phone or '',
+            'mother_name': student.mother_name or '',
+            'mother_phone': student.mother_phone or '',
+            'class_name': student.class_name,
+            'section': student.section,
+            'address': student.address or '',
+            'date_of_birth': student.date_of_birth.isoformat() if student.date_of_birth else None,
+            'photo_url': photo_url,
+            'is_active': student.is_active
+        }
+
+        return jsonify({
+            'success': True,
+            'student': student_data
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting student by ID: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/attendance/history')
@@ -2397,7 +2449,7 @@ def download_attendance_pdf(class_name, section, date, subject_id):
 
         try:
             pdf_buffer, pdf_url = generate_office_style_pdf(attendance_session)
-            
+
             if pdf_buffer:
                 return send_file(
                     pdf_buffer,
@@ -3014,6 +3066,68 @@ def manage_students():
         flash(f'Error loading students: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
 
+# ============= ADDED: ADMIN STUDENT VIEW ROUTE =============
+@app.route('/admin/student/<int:student_id>')
+@login_required
+@super_admin_required
+def admin_view_student(student_id):
+    """Admin view for individual student profile"""
+    try:
+        student = db.session.get(Student, student_id)
+        if not student:
+            flash('Student not found', 'danger')
+            return redirect(url_for('manage_students'))
+
+        # Get all attendance records for this student (admin can see all)
+        attendance_history = Attendance.query.filter(
+            Attendance.student_id == student.id
+        ).order_by(Attendance.date.desc()).limit(50).all()
+
+        total_classes = len(attendance_history)
+        present_count = sum(1 for a in attendance_history if a.status == 'present')
+        absent_count = sum(1 for a in attendance_history if a.status == 'absent')
+        late_count = sum(1 for a in attendance_history if a.status == 'late')
+
+        attendance_percentage = (present_count / total_classes * 100) if total_classes > 0 else 0
+
+        # Get class teacher info
+        class_obj = Class.query.filter_by(name=student.class_name).first()
+        class_teacher = class_obj.class_teacher if class_obj else None
+
+        # Get subjects the student is taking
+        subjects = Subject.query.all()
+
+        # Calculate subject-wise attendance
+        subject_stats = {}
+        for attendance in attendance_history:
+            subject_name = attendance.subject.name if attendance.subject else 'Unknown'
+            if subject_name not in subject_stats:
+                subject_stats[subject_name] = {'total': 0, 'present': 0}
+            subject_stats[subject_name]['total'] += 1
+            if attendance.status == 'present':
+                subject_stats[subject_name]['present'] += 1
+
+        # Get SMS logs for this student
+        sms_logs = SMSLog.query.join(Attendance).filter(
+            Attendance.student_id == student.id
+        ).order_by(SMSLog.sent_at.desc()).limit(20).all()
+
+        return render_template('admin/view_student.html',
+                             student=student,
+                             attendance_history=attendance_history,
+                             total_classes=total_classes,
+                             present_count=present_count,
+                             absent_count=absent_count,
+                             late_count=late_count,
+                             attendance_percentage=attendance_percentage,
+                             subject_stats=subject_stats,
+                             class_teacher=class_teacher,
+                             subjects=subjects,
+                             sms_logs=sms_logs)
+    except Exception as e:
+        flash(f'Error loading student details: {str(e)}', 'danger')
+        return redirect(url_for('manage_students'))
+
 # ============= ADDITIONAL ADMIN ROUTES =============
 @app.route('/admin/classes', methods=['GET', 'POST'])
 @login_required
@@ -3417,14 +3531,14 @@ def send_custom_message():
         try:
             recipient_type = request.form.get('recipient_type')
             message = request.form.get('message', '').strip()
-            
+
             if not message:
                 flash('Message is required', 'danger')
                 return redirect(url_for('send_custom_message'))
-            
+
             phone_numbers = []
             student_ids = []
-            
+
             if recipient_type == 'all':
                 # Get all active students
                 students = Student.query.filter_by(is_active=True).all()
@@ -3435,23 +3549,23 @@ def send_custom_message():
                     elif student.mother_phone:
                         phone_numbers.append(student.mother_phone)
                         student_ids.append(student.id)
-                        
+
                 flash(f'Preparing to send message to all {len(phone_numbers)} students', 'info')
-                
+
             elif recipient_type == 'class':
                 class_name = request.form.get('class_name')
                 section = request.form.get('section')
-                
+
                 if not class_name or not section:
                     flash('Class and section are required', 'danger')
                     return redirect(url_for('send_custom_message'))
-                
+
                 students = Student.query.filter_by(
                     class_name=class_name,
                     section=section,
                     is_active=True
                 ).all()
-                
+
                 for student in students:
                     if student.father_phone:
                         phone_numbers.append(student.father_phone)
@@ -3459,13 +3573,13 @@ def send_custom_message():
                     elif student.mother_phone:
                         phone_numbers.append(student.mother_phone)
                         student_ids.append(student.id)
-                        
+
                 flash(f'Preparing to send message to {len(phone_numbers)} students in {class_name}-{section}', 'info')
-                
+
             elif recipient_type == 'individual':
                 student_id = request.form.get('student_id')
                 student = db.session.get(Student, student_id)
-                
+
                 if student:
                     if student.father_phone:
                         phone_numbers.append(student.father_phone)
@@ -3479,33 +3593,33 @@ def send_custom_message():
                 else:
                     flash('Student not found', 'danger')
                     return redirect(url_for('send_custom_message'))
-                    
+
                 flash(f'Preparing to send message to {student.name}', 'info')
-            
+
             # Remove duplicates
             phone_numbers = list(set(phone_numbers))
-            
+
             if not phone_numbers:
                 flash('No valid phone numbers found', 'warning')
                 return redirect(url_for('send_custom_message'))
-            
+
             # Send SMS in background thread
             Thread(target=send_custom_sms_in_background, args=(phone_numbers, message)).start()
-            
+
             flash(f'Message will be sent to {len(phone_numbers)} recipients with 10 seconds delay between each', 'success')
             log_activity('send_custom_message', 'sms', f"Sent custom message to {len(phone_numbers)} recipients")
-            
+
             return redirect(url_for('send_custom_message'))
-            
+
         except Exception as e:
             flash(f'Error sending message: {str(e)}', 'danger')
             return redirect(url_for('send_custom_message'))
-    
+
     # GET request - show form
     try:
         classes = Class.query.all()
         students = Student.query.filter_by(is_active=True).order_by(Student.class_name, Student.section, Student.roll_number).all()
-        
+
         return render_template('admin/send_custom_message.html',
                              classes=classes,
                              students=students)
@@ -3519,7 +3633,7 @@ def send_custom_sms_in_background(phone_numbers, message):
         try:
             results = send_custom_sms_bulk(phone_numbers, message)
             app.logger.info(f"Custom SMS sending completed. Results: {results}")
-            
+
             # Log the results
             for phone in phone_numbers:
                 try:
@@ -3534,9 +3648,9 @@ def send_custom_sms_in_background(phone_numbers, message):
                     db.session.add(log)
                 except Exception as e:
                     app.logger.error(f"Error creating SMS log: {str(e)}")
-            
+
             db.session.commit()
-            
+
         except Exception as e:
             app.logger.error(f"Error in custom SMS background task: {str(e)}")
 
@@ -3934,24 +4048,24 @@ def debug_students():
     try:
         class_name = request.args.get('class', '6')
         section = request.args.get('section', 'A')
-        
+
         # Convert section to uppercase
         section = section.upper()
-        
+
         # Check database
         students_count = Student.query.filter_by(
             class_name=class_name,
             section=section,
             is_active=True
         ).count()
-        
+
         # Get sample student
         sample_student = Student.query.filter_by(
             class_name=class_name,
             section=section,
             is_active=True
         ).first()
-        
+
         return jsonify({
             'success': True,
             'class': class_name,
@@ -4069,13 +4183,13 @@ def initialize_system():
                     message_text='প্রিয় অভিভাবক, আপনার সন্তান [Student Name], রোল [Roll], আজ [Date] তারিখে [Class] শ্রেণিতে উপস্থিত ছিল। - দেওড়া উচ্চ বিদ্যালয়, ভাংগা, ফরিদপুর'
                 )
                 db.session.add(present_message)
-                
+
                 absent_message = CustomMessage(
                     message_type='absent',
                     message_text='প্রিয় অভিভাবক, আপনার সন্তান [Student Name], রোল [Roll], আজ [Date] তারিখে [Class] শ্রেণিতে অনুপস্থিত ছিল। অনুগ্রহ করে যোগাযোগ করুন। - দেওড়া উচ্চ বিদ্যালয়, ভাংগা, ফরিদপুর'
                 )
                 db.session.add(absent_message)
-                
+
                 late_message = CustomMessage(
                     message_type='late',
                     message_text='প্রিয় অভিভাবক, আপনার সন্তান [Student Name], রোল [Roll], আজ [Date] তারিখে [Class] শ্রেণিতে লেট ছিল। - দেওড়া উচ্চ বিদ্যালয়, ভাংগা, ফরিদপুর'
@@ -4135,7 +4249,7 @@ def initialize_system():
             # Create sample students if none exist
             if Student.query.count() == 0:
                 print("⚠️  No students found. Creating sample students...")
-                
+
                 # Create sample student for class 6-A
                 sample_student = Student(
                     roll_number='101',
@@ -4150,9 +4264,9 @@ def initialize_system():
                     is_active=True
                 )
                 db.session.add(sample_student)
-                
+
                 print("✅ Created sample student for testing")
-            
+
             # Create sample teacher if none exist (other than admin)
             if User.query.filter_by(role='teacher').count() == 0:
                 teacher = User(
